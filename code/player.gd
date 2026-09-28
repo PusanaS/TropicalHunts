@@ -1,12 +1,41 @@
 extends CharacterBody2D
+# ---------- เพิ่มบรรทัดนี้ในกลุ่ม @onready ----------
+@onready var sprite: AnimatedSprite2D = $AnimatedSprite2D   # เปลี่ยนชื่อ node ให้ตรงกับที่คุณใช้จริง
 
+# ---------- ชื่อคลิปตามชีทจริง (16 คลิป) ----------
+const ANIM_NAMES := {
+	State.IDLE: "IDLE",
+	State.WALK: "WALK",
+	State.RUN: "RUN",
+	State.SPRINT: "SPRINT",
+	State.BRAKE_LIGHT: "BRAKE",
+	State.BRAKE_HARD: "BRAKE",
+	State.JUMP_RISE: "JUMP_RISE",
+	State.JUMP_FALL: "JUMP_FALL",
+	State.DOUBLE_JUMP: "DOUBLE_JUMP",
+	State.LAND: "LAND",
+	State.ATTACK_LIGHT_1: "ATTACK_LIGHT_1",
+	State.ATTACK_LIGHT_2: "ATTACK_LIGHT_2",
+	State.ATTACK_HEAVY_WINDUP: "ATTACK_HEAVY_WINDUP",
+	State.ATTACK_HEAVY_SMASH: "ATTACK_HEAVY_SMASH",
+	State.DASH_ATTACK_LIGHT: "DASH_ATTACK_LIGHT",
+	State.DASH_ATTACK_HEAVY_WINDUP: "DASH_ATTACK_HEAVY_WINDUP",
+	State.DASH_ATTACK_HEAVY_SLAM: "JUMP_FALL",       # รียูส เล่นเร็วขึ้น
+	State.DASH_ATTACK_HEAVY_IMPACT: "DASH_ATTACK_HEAVY_IMPACT",
+}
+
+# สเตทที่รียูสคลิป แล้วอยากให้เล่นเร็ว/ช้ากว่าปกติ (ไม่กระทบ const เดิม)
+const ANIM_SPEED_OVERRIDE := {
+	State.BRAKE_HARD: 1.4,
+	State.DASH_ATTACK_HEAVY_SLAM: 1.6,
+}
 # ---------- STATES (ชื่อเดียวกับแอนิเมชั่นที่จะทำ) ----------
 enum State {
 	IDLE,
 	WALK, RUN, SPRINT,
 	BRAKE_LIGHT, BRAKE_HARD,
 	JUMP_RISE, JUMP_FALL, DOUBLE_JUMP, LAND,
-	ATTACK_LIGHT_1, ATTACK_LIGHT_2, ATTACK_LIGHT_3,
+	ATTACK_LIGHT_1, ATTACK_LIGHT_2,
 	ATTACK_HEAVY_WINDUP, ATTACK_HEAVY_SMASH,
 	DASH_ATTACK_LIGHT,
 	DASH_ATTACK_HEAVY_WINDUP, DASH_ATTACK_HEAVY_SLAM, DASH_ATTACK_HEAVY_IMPACT,
@@ -36,7 +65,6 @@ const LAND_TIME := 0.10
 const LIGHT_DURATIONS := {
 	State.ATTACK_LIGHT_1: 0.30,
 	State.ATTACK_LIGHT_2: 0.30,
-	State.ATTACK_LIGHT_3: 0.45,
 }
 const LIGHT_LUNGE := 80.0
 
@@ -118,18 +146,26 @@ func _process(delta):
 		camera.offset = Vector2.ZERO
 
 
-# ---------- เปลี่ยนสเตท + อัปเดตเลเบล ----------
 func _set_state(new_state: State):
 	state = new_state
 	state_time = 0.0
 	_update_label()
-	# TODO: ตอนมีสไปร์ท เรียก $AnimationPlayer.play(State.keys()[state].to_lower()) ตรงนี้
+	_play_anim(new_state)          # <-- เพิ่มบรรทัดนี้
 
 	match new_state:
 		State.ATTACK_HEAVY_SMASH:
 			_shake(SHAKE_SMALL_STRENGTH, SHAKE_SMALL_TIME)
 		State.DASH_ATTACK_HEAVY_IMPACT:
 			_shake(SHAKE_BIG_STRENGTH, SHAKE_BIG_TIME)
+
+
+func _play_anim(s: State):
+	var anim_name: String = ANIM_NAMES.get(s, "IDLE")
+	sprite.speed_scale = ANIM_SPEED_OVERRIDE.get(s, 1.0)
+	if sprite.animation != anim_name:
+		sprite.play(anim_name)
+	elif not sprite.is_playing():
+		sprite.play(anim_name)
 
 
 func _set_state_if_changed(s: State):
@@ -173,7 +209,7 @@ func _physics_process(delta):
 			_state_air(delta, dir)
 		State.LAND:
 			_state_land(delta, dir)
-		State.ATTACK_LIGHT_1, State.ATTACK_LIGHT_2, State.ATTACK_LIGHT_3:
+		State.ATTACK_LIGHT_1, State.ATTACK_LIGHT_2:
 			_state_attack_light(delta)
 		State.ATTACK_HEAVY_WINDUP, State.ATTACK_HEAVY_SMASH:
 			_state_attack_heavy(delta)
@@ -187,6 +223,7 @@ func _physics_process(delta):
 			_state_dash_heavy_impact(delta)
 
 	move_and_slide()
+	sprite.flip_h = facing < 0
 
 
 # ---------- ดับเบิลแท็ป ----------
@@ -376,7 +413,6 @@ func _state_land(delta, dir):
 			_set_state(State.IDLE)
 
 
-# ---------- โจมตีเบา คอมโบ 3 ท่า ----------
 func _state_attack_light(delta):
 	velocity.x = move_toward(velocity.x, 0.0, 600.0 * delta)
 	if Input.is_action_just_pressed("attack_light"):
@@ -384,16 +420,17 @@ func _state_attack_light(delta):
 
 	var duration: float = LIGHT_DURATIONS[state]
 	if state_time >= duration:
-		if combo_queued and state != State.ATTACK_LIGHT_3:
+		if combo_queued:
 			combo_queued = false
 			velocity.x = facing * LIGHT_LUNGE
+			# สลับท่า: 1 -> 2, 2 -> 1 วนไปเรื่อยๆ
 			if state == State.ATTACK_LIGHT_1:
 				_set_state(State.ATTACK_LIGHT_2)
 			else:
-				_set_state(State.ATTACK_LIGHT_3)
+				_set_state(State.ATTACK_LIGHT_1)
 		else:
 			speed_level = 0
-			_set_state(State.IDLE)
+			_set_state(State.IDLE)     # ปล่อยปุ่มเมื่อไหร่ กลับ IDLE ได้จากทั้ง 1 และ 2
 
 
 # ---------- โจมตีหนัก ง้าง -> ทุบ (หยุดเคลื่อนไหว, กล้องสั่นเล็ก) ----------
