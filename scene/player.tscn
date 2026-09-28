@@ -1,0 +1,41 @@
+[gd_scene format=3 uid="uid://bsrj1c4321u48"]
+
+[ext_resource type="Texture2D" uid="uid://dnws4da8pfvjk" path="res://icon.svg" id="1_4flbx"]
+[ext_resource type="Script" uid="uid://ddtxh6iditc5v" path="res://player.gd" id="1_onrkg"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_onrkg"]
+atlas = ExtResource("1_4flbx")
+region = Rect2(0, 0, 128, 128)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_i3pqv"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_onrkg")
+}],
+"loop": true,
+"name": &"default",
+"speed": 5.0
+}]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_hqtel"]
+radius = 43.0
+height = 162.0
+
+[node name="CharacterBody2D" type="CharacterBody2D" unique_id=178458555]
+script = ExtResource("1_onrkg")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=339644307]
+position = Vector2(0, 17)
+sprite_frames = SubResource("SpriteFrames_i3pqv")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1094707536]
+shape = SubResource("CapsuleShape2D_hqtel")
+
+[node name="Label" type="Label" parent="." unique_id=1266937855]
+offset_left = -60.0
+offset_top = -121.0
+offset_right = 54.0
+offset_bottom = -88.0
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1101576845]
