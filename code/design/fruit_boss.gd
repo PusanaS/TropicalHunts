@@ -52,6 +52,8 @@ enum State { IDLE, WALK, STOMP_WINDUP, JUMP, LAND, ROLL_WINDUP, ROLL, DIZZY, SUM
 @export var summon_windup := 0.7
 @export var max_minions := 3
 @export var respawn_time := 6.0           # gym only: comes back after this long, 0 = stays dead
+@export var leash_right := -1.0           # it never goes further right than this from its start (-1 = no limit);
+                                          # keeps it out of a doorway next to it
 
 const STAGE_SPEED := [1.0, 1.2, 1.4]      # full crown, broken crown, bald
 const WALK_TIME := 1.2
@@ -252,6 +254,11 @@ func _physics_process(delta):
 	move_and_slide()
 	if state == State.ROLL and is_on_wall() and get_wall_normal().x * facing < 0.0:
 		_bonk()
+	if leash_right >= 0.0 and global_position.x > home.x + leash_right:
+		global_position.x = home.x + leash_right   # the leash acts like a wall
+		velocity.x = minf(velocity.x, 0.0)
+		if state == State.ROLL and facing > 0:
+			_bonk()
 	sprite.flip_h = facing < 0    # the art faces right
 	_touch_player()
 
@@ -267,7 +274,14 @@ func _face_player():
 
 
 func _player_in_arena() -> bool:
-	return player != null and absf(_to_player().x) <= engage_range and absf(_to_player().y) <= 200.0
+	if player == null or absf(_to_player().x) > engage_range or absf(_to_player().y) > 200.0:
+		return false
+	# only fights a player it can see: a closed gate or a wall in between hides them
+	var from := global_position + Vector2(0, -40)
+	var q := PhysicsRayQueryParameters2D.create(from, player.global_position + Vector2(0, -20), 1)
+	var skip: Array[RID] = [get_rid(), player.get_rid()]
+	q.exclude = skip
+	return get_world_2d().direct_space_state.intersect_ray(q).is_empty()
 
 
 func _brake(delta):

@@ -15,8 +15,11 @@ const HOVER := Vector2(64, -56)           # where the player hangs, from the bos
 const BODY_CENTER := Vector2(0, -40)
 const LOCK_ON_TIME := 0.35
 const SLASHES := 26
+const HITS_PER_SLASH := 4                 # added to the combo counter per slash (26 x 4 = "a hundred slashes")
 const SLASH_GAP := Vector2(0.09, 0.03)    # time between slashes: first, last
 const DASH_TIME := 0.1
+const BREAK_HEIGHT := 80.0                # highest it can be (feet above the floor) and still be on screen
+const BOSS_DROP_TIME := 0.2               # how long the last cut takes to knock it down to that height
 const SILENCE := 0.7
 const CUTS := 5                           # how many of the slashes actually split it into pieces
 const LAND_DIST := 80.0
@@ -78,6 +81,7 @@ func _run():
 		await _wait(lerpf(SLASH_GAP.x, SLASH_GAP.y, float(i) / SLASHES))
 
 	# 3. final cut: dash through and land behind it, back turned
+	get_tree().call_group("combo_hud", "finish")   # the combo counter stops here with the full total
 	var dir := -side
 	var land := _landing_distance(dir)
 	if land < 48.0:
@@ -91,6 +95,12 @@ func _run():
 	_streak(to_local(from) + Vector2(0, -20), to_local(to) + Vector2(0, -20), 6.0, 0.3)
 	create_tween().tween_property(player, "global_position", to, DASH_TIME)
 	_flash_boss()
+	# the last cut knocks the boss down, just low enough to be on screen when it falls apart
+	var break_y := _ground_below(boss.global_position.x) - BREAK_HEIGHT
+	if boss.global_position.y < break_y:
+		var fall := create_tween()
+		fall.tween_property(boss, "global_position:y", break_y, BOSS_DROP_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		fall.tween_callback(_shake.bind(8.0, 0.2))
 	await _wait(DASH_TIME)
 	player.facing = int(dir)
 	_psprite.flip_h = dir < 0.0
@@ -129,6 +139,7 @@ func _slash(i: int):
 	if i % 2 == 0:
 		_flash_boss()
 	_shake(3.0, 0.06)
+	get_tree().call_group("combo_hud", "add_hits", HITS_PER_SLASH)
 
 
 # a see-through copy of the player's current frame that fades: reads as "moving too fast to see"
@@ -227,6 +238,7 @@ func _lower():
 # Cuts the boss's current frame along some of the slash lines into Polygon2D pieces
 # that show the same pixels, then lets them slide apart and fall.
 func _split():
+	global_position = boss.global_position    # the boss may have been knocked down: pieces start where it is
 	var spr: AnimatedSprite2D = boss.sprite
 	var tex := spr.sprite_frames.get_frame_texture(spr.animation, spr.frame) as AtlasTexture
 	if tex == null:
