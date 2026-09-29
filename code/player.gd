@@ -2,12 +2,17 @@ extends CharacterBody2D
 # ---------- เพิ่มบรรทัดนี้ในกลุ่ม @onready ----------
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D   # เปลี่ยนชื่อ node ให้ตรงกับที่คุณใช้จริง
 
+# DEBUG: double-tapping a direction goes straight to the gallop (full speed) instead of the run.
+# Untick it in the Inspector (on the Player) for normal play.
+@export var debug_tap_gallop := true
+
 # ---------- ชื่อคลิปตามชีทจริง (16 คลิป) ----------
 const ANIM_NAMES := {
 	State.IDLE: "IDLE",
 	State.WALK: "WALK",
 	State.RUN: "RUN",
 	State.SPRINT: "SPRINT",
+	State.GALLOP: "GALLOP",
 	State.BRAKE_LIGHT: "BRAKE",
 	State.BRAKE_HARD: "BRAKE",
 	State.JUMP_RISE: "JUMP_RISE",
@@ -22,12 +27,17 @@ const ANIM_NAMES := {
 	State.DASH_ATTACK_HEAVY_WINDUP: "DASH_ATTACK_HEAVY_WINDUP",
 	State.DASH_ATTACK_HEAVY_SLAM: "JUMP_FALL",       # รียูส เล่นเร็วขึ้น
 	State.DASH_ATTACK_HEAVY_IMPACT: "DASH_ATTACK_HEAVY_IMPACT",
+	State.HEAVY_CHARGE: "ATTACK_HEAVY_WINDUP",        # held on its last frame while charging
+	State.CHARGED_SMASH: "ATTACK_HEAVY_SMASH",
 }
 
 # สเตทที่รียูสคลิป แล้วอยากให้เล่นเร็ว/ช้ากว่าปกติ (ไม่กระทบ const เดิม)
 const ANIM_SPEED_OVERRIDE := {
 	State.BRAKE_HARD: 1.4,
 	State.DASH_ATTACK_HEAVY_SLAM: 1.6,
+	State.ATTACK_HEAVY_WINDUP: 5.0,          # short windup (no pause): play all 3 frames in 0.12 s
+	State.DASH_ATTACK_HEAVY_WINDUP: 2.5,     # same for the running/air W
+	State.CHARGED_SMASH: 1.5,
 }
 # ---------- STATES (ชื่อเดียวกับแอนิเมชั่นที่จะทำ) ----------
 enum State {
@@ -39,12 +49,18 @@ enum State {
 	ATTACK_HEAVY_WINDUP, ATTACK_HEAVY_SMASH,
 	DASH_ATTACK_LIGHT,
 	DASH_ATTACK_HEAVY_WINDUP, DASH_ATTACK_HEAVY_SLAM, DASH_ATTACK_HEAVY_IMPACT,
+	GALLOP,                          # new states go at the end: enemies read states by position
+	HEAVY_CHARGE, CHARGED_SMASH,     # hold W: the heavy swing holds and charges; let go: massive hit
 }
 
+# the ground-move state for each speed level
+const MOVE_STATES := [State.IDLE, State.WALK, State.RUN, State.SPRINT, State.GALLOP]
+
 # ---------- ค่าปรับแต่ง ----------
-const SPEEDS := [0.0, 120.0, 260.0, 420.0]   # index = speed level (0 หยุด, 1 เดิน, 2 วิ่ง, 3 วิ่งเร็ว)
+const SPEEDS := [0.0, 120.0, 260.0, 420.0, 600.0]   # index = speed level (0 หยุด, 1 เดิน, 2 วิ่ง, 3 วิ่งเร็ว, 4 gallop)
 const TIME_TO_LEVEL_2 := 1.0     # เปลี่ยนจาก 0.35 เป็น 1.0 (จากเดินไปวิ่งใช้เวลา 1 วินาที)
 const TIME_TO_LEVEL_3 := 1.9     # เปลี่ยนจาก 0.60 เป็น 3.0 (วิ่งเร็วในวินาทีที่ 3)
+const TIME_TO_LEVEL_4 := 3.0     # gallop: keep holding 1.1 s after the sprint starts
 const DOUBLE_TAP_LEVEL_3_TIME := 0.66
 const DOUBLE_TAP_WINDOW := 0.7   
 const ACCEL := 1600.0
@@ -68,8 +84,18 @@ const LIGHT_DURATIONS := {
 }
 const LIGHT_LUNGE := 80.0
 
-const HEAVY_WINDUP_TIME := 0.50
+const HEAVY_WINDUP_TIME := 0.12     # was 0.50: Morgan didn't like the pause before the smash
 const HEAVY_SMASH_TIME := 0.40
+
+# hold W: the heavy swing holds and charges; letting go hits everything around, harder the longer
+# it charged. The effects (glow, shockwave, dust cloud) are in code/design/charge_fx.gd.
+const CHARGE_TIME := 1.0                      # seconds to full charge
+const CHARGE_MAX_HOLD := 3.0                  # it lets go by itself after this
+const CHARGED_SMASH_TIME := 0.5
+const CHARGE_RADIUS := Vector2(80, 180)       # reach at no charge / full charge
+const CHARGE_DAMAGE := Vector2(3, 6)          # damage at no charge / full charge
+const CHARGE_PUSH := Vector2(260, -380)       # knock at full charge (60% of it at no charge)
+const CHARGE_HEIGHT := 90.0                   # enemies this far above or below the feet are hit too
 
 # แดชแอทแทคเบา: กลิ้ง + ฟันไว แล้ววิ่งต่อ
 const DASH_LIGHT_TIME := 0.30
@@ -79,7 +105,7 @@ const DASH_LIGHT_SPEED := 560.0
 const DASH_HEAVY_LEAP_TIME := 0.12
 const DASH_HEAVY_LEAP_X := 200.0
 const DASH_HEAVY_LEAP_Y := -320.0
-const DASH_HEAVY_WINDUP_TIME := 0.55         # รวมช่วงดีดตัว
+const DASH_HEAVY_WINDUP_TIME := 0.12         # รวมช่วงดีดตัว (was 0.55: leap straight into the slam, no hover pause)
 const DASH_HEAVY_SLAM_SPEED := 1000.0
 const DASH_HEAVY_IMPACT_TIME := 0.55
 
@@ -89,7 +115,7 @@ const SHAKE_SMALL_TIME := 0.15
 const SHAKE_BIG_STRENGTH := 16.0
 const SHAKE_BIG_TIME := 0.40
 
-# Thunderclap flash: at full sprint, an enemy ahead sets it off automatically. Instantly cut
+# Thunderclap flash: while galloping, an enemy ahead sets it off automatically. Instantly cut
 # through every enemy in the lane, reappear past the last one and keep sprinting.
 # Enemies: group "enemies" + take_hit().
 const FLASH_TRIGGER_RANGE := 120.0   # enemy this close ahead starts it
@@ -100,12 +126,11 @@ const FLASH_OVERSHOOT := 32.0        # land this far past the last enemy
 const FLASH_DAMAGE := 3
 const FLASH_PUSH := Vector2(80, -160)
 
-# Counter: press Q while an enemy is lunging at you -> one massive horizontal slash, on the spot
-# (no moving). It cuts the lunging enemy in half, and every other enemy lined up behind it too.
+# Counter: press Q while an enemy is lunging at you -> time stops, it's cut in half, then the player
+# teleports to every other enemy that was on screen and cuts them too (code/counter_chain.gd).
 # Enemies opt in with is_counterable() (true mid-lunge) and cut_in_half(dir).
 const COUNTER_RANGE := 96.0
-const COUNTER_SLASH_LENGTH := 320.0  # reaches past the edge of the screen, unless a wall stops it
-const COUNTER_SLASH_LANE := 64.0     # enemies this far above/below your feet get chopped too
+const CounterChain := preload("res://code/counter_chain.gd")
 const COUNTER_BLOCKED := [          # committed moves that can't be interrupted by a counter
 	State.ATTACK_HEAVY_WINDUP, State.ATTACK_HEAVY_SMASH,
 	State.DASH_ATTACK_HEAVY_WINDUP, State.DASH_ATTACK_HEAVY_SLAM, State.DASH_ATTACK_HEAVY_IMPACT,
@@ -119,6 +144,7 @@ var state_time := 0.0
 var facing := 1
 var speed_level := 0
 var hold_time := 0.0
+var charge := 0.0                  # 0..1 while W is held (charge_fx.gd reads it)
 var coyote_timer := 0.0
 var jump_buffer_timer := 0.0
 var jump_cut_done := false
@@ -135,12 +161,15 @@ var shake_time_left := 0.0
 
 var _sparks: CPUParticles2D
 
+const ComboHud := preload("res://code/combo_hud.gd")
+
 
 func _ready():
 	add_to_group("player")
 	_ensure_action("attack_light", KEY_Q)
 	_ensure_action("attack_heavy", KEY_W)
 	_sparks = _make_sparks()
+	add_child(ComboHud.new())
 	_set_state(State.IDLE)
 
 
@@ -180,6 +209,10 @@ func _set_state(new_state: State):
 	_play_anim(new_state)          # <-- เพิ่มบรรทัดนี้
 
 	match new_state:
+		State.HEAVY_CHARGE:
+			# hold the swing: freeze on the windup's last frame while charging
+			sprite.frame = sprite.sprite_frames.get_frame_count(sprite.animation) - 1
+			sprite.pause()
 		State.ATTACK_HEAVY_SMASH:
 			_shake(SHAKE_SMALL_STRENGTH, SHAKE_SMALL_TIME)
 		State.DASH_ATTACK_HEAVY_IMPACT:
@@ -234,7 +267,7 @@ func _physics_process(delta):
 		return
 
 	match state:
-		State.IDLE, State.WALK, State.RUN, State.SPRINT:
+		State.IDLE, State.WALK, State.RUN, State.SPRINT, State.GALLOP:
 			_state_ground_move(delta, dir)
 		State.BRAKE_LIGHT, State.BRAKE_HARD:
 			_state_brake(delta, dir)
@@ -246,6 +279,10 @@ func _physics_process(delta):
 			_state_attack_light(delta)
 		State.ATTACK_HEAVY_WINDUP, State.ATTACK_HEAVY_SMASH:
 			_state_attack_heavy(delta)
+		State.HEAVY_CHARGE:
+			_state_heavy_charge(delta)
+		State.CHARGED_SMASH:
+			_state_charged_smash(delta)
 		State.DASH_ATTACK_LIGHT:
 			_state_dash_attack_light(delta, dir)
 		State.DASH_ATTACK_HEAVY_WINDUP:
@@ -318,6 +355,18 @@ func _try_attack() -> bool:
 
 
 # ---------- พื้น: idle / walk / run / sprint ----------
+# double-tap a direction: run straight away (or, with debug_tap_gallop, gallop straight away)
+func _double_tap_start():
+	if debug_tap_gallop:
+		speed_level = SPEEDS.size() - 1
+		hold_time = TIME_TO_LEVEL_4
+		velocity.x = facing * SPEEDS[speed_level]      # full speed at once
+	else:
+		speed_level = 2
+		# ตั้ง hold_time ให้เริ่มนับจากจุดที่วิ่ง เพื่อให้อีก 0.5 วินาทีถัดไป (รวมเป็น 1.5s) กลายเป็น speed_level 3
+		hold_time = TIME_TO_LEVEL_3 - 0.5
+
+
 func _state_ground_move(delta, dir):
 	if not is_on_floor():
 		_set_state(State.JUMP_FALL)
@@ -333,9 +382,7 @@ func _state_ground_move(delta, dir):
 		if speed_level == 0 or d != facing:
 			facing = d
 			if _double_tap_dir == d:
-				speed_level = 2
-				# ตั้ง hold_time ให้เริ่มนับจากจุดที่วิ่ง เพื่อให้อีก 0.5 วินาทีถัดไป (รวมเป็น 1.5s) กลายเป็น speed_level 3
-				hold_time = TIME_TO_LEVEL_3 - 0.5
+				_double_tap_start()
 			else:
 				speed_level = 1
 				hold_time = 0.0
@@ -344,8 +391,10 @@ func _state_ground_move(delta, dir):
 			speed_level = 2
 		elif speed_level == 2 and hold_time >= TIME_TO_LEVEL_3:
 			speed_level = 3
+		elif speed_level == 3 and hold_time >= TIME_TO_LEVEL_4:
+			speed_level = 4
 		velocity.x = move_toward(velocity.x, facing * SPEEDS[speed_level], ACCEL * delta)
-		_set_state_if_changed([State.IDLE, State.WALK, State.RUN, State.SPRINT][speed_level])
+		_set_state_if_changed(MOVE_STATES[speed_level])
 	else:
 		if speed_level >= 1 and abs(velocity.x) > 5.0:
 			_enter_brake()
@@ -382,9 +431,8 @@ func _state_brake(delta, dir):
 		var d := int(sign(dir))
 		if d == facing:
 			if _double_tap_dir == d:
-				speed_level = 2
-				hold_time = TIME_TO_LEVEL_3 - 0.5
-				_set_state(State.RUN)
+				_double_tap_start()
+				_set_state(MOVE_STATES[speed_level])
 				return
 			hold_time = 0.0
 			speed_level = max(speed_level, 1)
@@ -451,7 +499,7 @@ func _state_land(delta, dir):
 			if speed_level == 0:
 				speed_level = 1
 				hold_time = 0.0
-			_set_state([State.IDLE, State.WALK, State.RUN, State.SPRINT][speed_level])
+			_set_state(MOVE_STATES[speed_level])
 		else:
 			speed_level = 0
 			_set_state(State.IDLE)
@@ -506,9 +554,48 @@ func _try_air_attack() -> bool:
 func _state_attack_heavy(_delta):
 	velocity.x = 0.0
 	if state == State.ATTACK_HEAVY_WINDUP and state_time >= HEAVY_WINDUP_TIME:
-		_set_state(State.ATTACK_HEAVY_SMASH)
+		if Input.is_action_pressed("attack_heavy"):
+			charge = 0.0
+			_set_state(State.HEAVY_CHARGE)       # still holding W: hold the swing and charge it
+		else:
+			_set_state(State.ATTACK_HEAVY_SMASH)
 	elif state == State.ATTACK_HEAVY_SMASH and state_time >= HEAVY_SMASH_TIME:
 		_set_state(State.IDLE)
+
+
+# ---------- hold W: charge the heavy smash, let go for a massive hit ----------
+func _state_heavy_charge(_delta):
+	velocity.x = 0.0
+	if not is_on_floor():                        # knocked off the ground: the charge is lost
+		charge = 0.0
+		_set_state(State.JUMP_FALL)
+		return
+	charge = minf(state_time / CHARGE_TIME, 1.0)
+	if not Input.is_action_pressed("attack_heavy") or state_time >= CHARGE_MAX_HOLD:
+		_set_state(State.CHARGED_SMASH)
+		_charged_hit()
+
+
+func _state_charged_smash(_delta):
+	velocity.x = 0.0
+	if state_time >= CHARGED_SMASH_TIME:
+		charge = 0.0
+		_set_state(State.IDLE)
+
+
+# hits every enemy around the player; reach, damage and knock grow with the charge
+func _charged_hit():
+	var reach := lerpf(CHARGE_RADIUS.x, CHARGE_RADIUS.y, charge)
+	var damage := int(round(lerpf(CHARGE_DAMAGE.x, CHARGE_DAMAGE.y, charge)))
+	var knock := 0.6 + 0.4 * charge
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node2D) or not _is_alive(e) or not e.has_method("take_hit"):
+			continue
+		var d: Vector2 = e.global_position - global_position
+		if absf(d.x) <= reach and absf(d.y) <= CHARGE_HEIGHT:
+			var side := signf(d.x) if d.x != 0.0 else float(facing)
+			e.take_hit(damage, Vector2(side * CHARGE_PUSH.x * knock, CHARGE_PUSH.y * knock))
+	_shake(SHAKE_BIG_STRENGTH * (0.6 + 0.6 * charge), SHAKE_BIG_TIME + 0.2 * charge)
 
 
 # ---------- แดชแอทแทคเบา: กลิ้ง ตีเร็ว วิ่งต่อ ----------
@@ -517,8 +604,8 @@ func _state_dash_attack_light(_delta, dir):
 	if state_time >= DASH_LIGHT_TIME:
 		if dir != 0 and int(sign(dir)) == facing:
 			speed_level = resume_level
-			hold_time = TIME_TO_LEVEL_2 if resume_level == 2 else TIME_TO_LEVEL_3
-			_set_state(State.RUN if resume_level == 2 else State.SPRINT)
+			hold_time = [0.0, 0.0, TIME_TO_LEVEL_2, TIME_TO_LEVEL_3, TIME_TO_LEVEL_4][resume_level]
+			_set_state(MOVE_STATES[resume_level])
 		else:
 			_enter_brake()
 
@@ -549,7 +636,7 @@ func _state_dash_heavy_impact(_delta):
 
 # ---------- Thunderclap flash: sprint into an enemy -> cut through, reappear, keep sprinting ----------
 func _try_flash(dir) -> bool:
-	if speed_level < 3 or int(sign(dir)) != facing or not is_on_floor():
+	if speed_level < 4 or int(sign(dir)) != facing or not is_on_floor():   # gallop only
 		return false
 	if _enemies_ahead(FLASH_TRIGGER_RANGE).is_empty():
 		return false
@@ -570,11 +657,11 @@ func _flash_strike():
 		if (e.global_position.x - start.x) * facing <= dist and e.has_method("take_hit"):
 			e.take_hit(FLASH_DAMAGE, Vector2(facing * FLASH_PUSH.x, FLASH_PUSH.y))
 	global_position.x = start.x + facing * dist
-	velocity.x = facing * SPEEDS[speed_level]      # come out of it still sprinting
+	velocity.x = facing * SPEEDS[speed_level]      # come out of it at the same speed (sprint or gallop)
 	_flash_streak(start + Vector2(0, -20), global_position + Vector2(0, -20))
 	_sparks.restart()                               # burst where it lands
 	_shake(SHAKE_BIG_STRENGTH, SHAKE_SMALL_TIME)
-	_set_state(State.SPRINT)
+	_set_state(MOVE_STATES[speed_level])
 
 
 func _try_counter() -> bool:
@@ -590,81 +677,14 @@ func _try_counter() -> bool:
 				target = e
 	if target == null:
 		return false
-	var side := int(signf(target.global_position.x - global_position.x))
-	if side != 0:
-		facing = side
-	velocity.x = 0.0         # cut on the spot, no sliding
+	velocity = Vector2.ZERO
 	speed_level = 0
 	hold_time = 0.0
-	var reach := _counter_reach(global_position.y - 20.0)   # sword height
-	# no hp check needed: cut_in_half itself ignores enemies that are already dead
-	for e in get_tree().get_nodes_in_group("enemies"):
-		if not (e is Node2D) or not e.has_method("cut_in_half"):
-			continue
-		var d: float = (e.global_position.x - global_position.x) * facing
-		var in_line: bool = d > -16.0 and d <= reach and absf(e.global_position.y - global_position.y) <= COUNTER_SLASH_LANE
-		if e == target or in_line:
-			e.cut_in_half(facing)
-	_big_slash(reach)
-	_sparks.restart()
-	_shake(SHAKE_BIG_STRENGTH, SHAKE_BIG_TIME)
-	# the sword swing that makes the slash
-	combo_queued = false
-	light_in_air = not is_on_floor()
-	_set_state(State.ATTACK_LIGHT_2)
+	var chain := CounterChain.new()     # takes over from here: freezes time and runs the cuts
+	chain.player = self
+	chain.first = target
+	get_parent().add_child(chain)
 	return true
-
-
-# how far the counter slash goes before a wall stops it
-func _counter_reach(y: float) -> float:
-	var from := Vector2(global_position.x, y)
-	var q := PhysicsRayQueryParameters2D.create(from, from + Vector2(facing * COUNTER_SLASH_LENGTH, 0), collision_mask, _flash_exclude())
-	var hit := get_world_2d().direct_space_state.intersect_ray(q)
-	return COUNTER_SLASH_LENGTH if hit.is_empty() else absf(hit.position.x - from.x)
-
-
-# the counter slash: starts as the sword's arc (over the shoulder round to straight ahead) and
-# shoots out from the tip. Starts slow and speeds up, holds, then thins and fades.
-func _big_slash(reach: float):
-	var hilt := global_position + Vector2(0, -20)
-	var path := PackedVector2Array()
-	for i in 9:
-		var a := deg_to_rad(lerpf(-110.0, 0.0, i / 8.0))
-		path.append(hilt + Vector2(cos(a) * facing, sin(a)) * 20.0)
-	path.append(hilt + Vector2(facing * reach, 0))
-	for look in [[12.0, Color(1.0, 0.9, 0.35, 0.5)], [3.0, Color(1.0, 1.0, 0.9)]]:   # soft glow, bright core
-		var line := Line2D.new()
-		line.top_level = true
-		line.z_index = 5
-		line.width = look[0]
-		line.default_color = look[1]
-		line.joint_mode = Line2D.LINE_JOINT_ROUND
-		line.end_cap_mode = Line2D.LINE_CAP_ROUND
-		add_child(line)
-		var t := line.create_tween()
-		t.tween_method(func(k: float): line.points = _path_until(path, k), 0.0, 1.0, 0.1) \
-			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-		t.tween_interval(0.05)
-		t.tween_property(line, "width", 0.0, 0.25)
-		t.parallel().tween_property(line, "modulate:a", 0.0, 0.25)
-		t.tween_callback(line.queue_free)
-
-
-# the first k (0..1) of a line of points, measured by length
-func _path_until(path: PackedVector2Array, k: float) -> PackedVector2Array:
-	var total := 0.0
-	for i in range(1, path.size()):
-		total += path[i - 1].distance_to(path[i])
-	var left := total * k
-	var out := PackedVector2Array([path[0]])
-	for i in range(1, path.size()):
-		var seg := path[i - 1].distance_to(path[i])
-		if left <= seg:
-			out.append(path[i - 1].lerp(path[i], left / seg if seg > 0.0 else 1.0))
-			return out
-		left -= seg
-		out.append(path[i])
-	return out
 
 
 func _enemies_ahead(reach: float) -> Array:
