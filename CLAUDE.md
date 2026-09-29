@@ -34,36 +34,68 @@ Repo: https://github.com/PusanaS/TropicalHunts (owned by BOOM).
 
 ## Player numbers
 These come from `player.gd`, with Godot's default gravity of 980.
-- **Speeds:** walk 120 px/s. Run 260 after holding a direction for 1s. Sprint 420 after 1.9s.
-- **Double-tap a direction:** run instantly, and sprint 0.5s later.
+- **Speeds:** walk 120 px/s. Run 260 after holding a direction for 1s. Sprint 420 after 1.9s. Gallop 600 after 3s: speed level 4, BOOM's `GALLOP` animation, added 2026-09-29. `MOVE_STATES` maps each speed level to its state.
+- **Player art:** BOOM's current sheet is `Sprite/PsV3.png`. It also has a one-frame `FLASH` animation that the code doesn't use yet.
+- **Double-tap a direction:** run instantly, and sprint 0.5s later. While the DEBUG switch `debug_tap_gallop` in `player.gd` is on (it's on by default; ENEMY session, Morgan's call), a double-tap goes straight to full-speed gallop instead. Untick it on the Player in the Inspector for normal play. The logic is in `_double_tap_start()`.
 - **Jump height:** about 103px. The double jump adds about 82px, for about 185px in total.
 - **Full jump distance:** walking about 110px, running about 240px, sprinting about 385px.
 - **Size:** the player is about 40px tall, and the node's origin is at the feet.
 - **View limits:** at sprint speed you see only about 0.57s ahead. From 256px up, you can't see the ground.
-- **Air attacks (added 2026-09-29):** Q in the air does the light combo with no lunge, keeping your drift, then goes back to falling. Landing in the middle of it cancels it into LAND (tracked by `light_in_air`, added by the ENEMY session). W in the air goes straight into `DASH_ATTACK_HEAVY_SLAM`: an immediate slam down with a big-shake impact, with no hop or hover (Morgan's call). The running W on the ground still has its hop and hover. The sprint flash still only triggers on the ground.
+- **Air attacks (added 2026-09-29):** Q in the air does the light combo with no lunge, keeping your drift, then goes back to falling. Landing in the middle of it cancels it into LAND (tracked by `light_in_air`, added by the ENEMY session). W in the air goes straight into `DASH_ATTACK_HEAVY_SLAM`: an immediate slam down with a big-shake impact, with no hop or hover (Morgan's call). The ground W wind-ups are also only 0.12s now (Morgan's call, done by the ENEMY session): `HEAVY_WINDUP_TIME` and `DASH_HEAVY_WINDUP_TIME` are 0.12, with `ANIM_SPEED_OVERRIDE` speeding up the wind-up animations to match. The standing W smashes almost at once, and the running W does a quick leap straight into the slam, with no hover. The sprint flash still only triggers on the ground.
 
 ## What we've added
 - **`scene/design/gym_movement.tscn`:** a movement test room with ledges from 32 to 192px, a 1600px runway, gaps from 96 to 416px, low ceilings, a 256px drop, monster-size blocks and flying monster heights.
 - **`code/live_reload.gd`:** a tool for development only. Add it as a Node in a scene. While the game runs, it reloads changed scripts and scenes from disk, keeps the position of the node named `Player`, and does nothing in exported builds.
 - **The Thunderclap flash, in `player.gd`** (`_try_flash` and `_flash_strike`, settings in the `FLASH_*` constants). It's Morgan's idea, based on Zenitsu's move from *Demon Slayer*.
-  - **Trigger:** at full sprint, holding a direction, with an enemy up to 120px ahead. The flash happens instantly, with no pause (Morgan's call, 2026-09-29). It hits every enemy in its path and lands just past the last one, 160–240px away.
+  - **Trigger:** only while galloping (speed level 4, Morgan's call, 2026-09-29), holding a direction, with an enemy up to 120px ahead. The flash happens instantly, with no pause (Morgan's call, 2026-09-29). It hits every enemy in its path and lands just past the last one, 160–240px away.
   - **Walls and pits:** it stops at walls and never lands over a pit.
-  - **After:** the player comes out of it still sprinting (also Morgan's call). There's no cooldown, so flashes can chain through groups of enemies.
+  - **After:** the player comes out of it still galloping (also Morgan's call). There's no cooldown, so flashes can chain through groups of enemies.
   - **Visuals:** made in code: a yellow streak along the path, a spark burst where it lands, and screen shake. It has no state or animation of its own.
-- **The counter, in `player.gd`** (`_try_counter`, `COUNTER_*` constants). Press Q while an enemy is mid-lunge within 96px: the player turns to face it and does one massive horizontal slash on the spot. There's no teleport and no horizontal movement: the player's horizontal speed drops to 0 (Morgan's call).
-  - **The slash:** the player plays the `ATTACK_LIGHT_2` swing. The slash starts as a sword arc at chest height (20px above the feet), swinging from over the shoulder round to the front, then shoots out straight, up to 320px and stopped by walls. It's thin: a 12px glow with a 3px core. It cuts in half every enemy in that line within 64px of the player's height. Morgan's friend asked for this.
-  - **What it hits:** only enemies with `cut_in_half()`, so the boss isn't hit. It works from any state except the heavy attacks, including in the air. It's Morgan's idea, added 2026-09-29.
+- **The counter** (`_try_counter` in `player.gd`, which spawns `code/counter_chain.gd`). Press Q while an enemy is mid-lunge within 96px. It's Morgan's design; the horizontal beam was removed.
+  - **Time stop:** `Engine.time_scale` is 0, re-applied every frame because hit-freezes reset it. The world dims to indigo, while the player stays lit (z 35) with physics off.
+  - **The cuts:** after 0.18s the lunging enemy is cut in half. Then the player teleports beside each other enemy with `cut_in_half()` that was on screen when the counter started, nearest first (leaving a teal afterimage and a streak), and cuts it too.
+  - **Resume:** time restarts, every cut enemy falls apart at once, there's a big shake, and the player is protected for 0.6s.
+  - **Safety:** if the node is removed mid-chain, `_exit_tree` always restores `time_scale`.
+  - **Banner:** a pixel "COUNTER!" banner with a chain count (X2, X3…) is drawn by the combo HUD through `counter_start`, `counter_cut` and `counter_end`.
+  - **Scope:** only enemies with `cut_in_half()` are chained, so the boss isn't. It works from any state except the heavy attacks.
 - **How enemies work with the flash:** an enemy joins the group `"enemies"`, has a `take_hit(damage, push)` function, and can optionally have `is_alive()`. For the counter it also needs `is_counterable()` (true mid-lunge) and `cut_in_half(dir)`. The fruit minion has both. The player joins the group `"player"`.
 - **The Big Pineapple boss, from the ENEMY session:** `code/design/fruit_boss.gd`, `boss_wave.gd`, `enemy_kit.gd` and `scene/design/fruit_boss.tscn`.
   - It summons Mango minions. The flash hits it, but the counter doesn't: it has no `is_counterable()`.
   - **Juggling is for bosses only** (Morgan's call; minions don't juggle). A hit that gets through the boss's armor launches it (`JUGGLED`). Armor-piercing means damage 3, or any hit while it's dizzy or already juggled, including the flash. It lands into `RECOVER`: it can still be hurt then, but not launched again.
   - Placeholder art sheets for the minion, the boss and the juice drop are in `scene/design/art/`.
-  - **Gym layout, left to right:** BossArena (x -2816 to -1728), then a 112px gate at x=-1696 (double-jump it), then the minion arena, then the original gym. Start/WallLeft has moved to x=-2848.
+  - **Gym layout, left to right:** BossArena (x -2816 to -1728), then its entrance at x=-1696, then the minion arena, then the original gym. Start/WallLeft has moved to x=-2848.
+  - **The entrance is a breakable portcullis** (`code/design/breakable_door.gd`, from the ENEMY session). A wall section above it leaves a 112px doorway.
+    - **Breaking it:** any attack, a charged W in reach, or galloping into it.
+    - **After:** it drops back down after 1s, waiting while anything is in the doorway, and calls `burst(pos, 3.0)` when it lands. It isn't in `"enemies"`.
+    - **Background hook:** effects can shake the living background with `call_group("living_background", "burst", pos, strength)`.
 - **Don't rename these; enemy code depends on them:**
   - **In `player.gd`:** `state`, `state_time`, `facing`, the `State` enum (its order too: new states go at the end), the `"player"` group, `_shake(strength, time)` and `_set_state()`.
   - **In `scene/player.tscn`:** the sprite node's name, `AnimatedSprite2D`, and the animations `IDLE`, `ATTACK_HEAVY_WINDUP`, `ATTACK_LIGHT_1`, `ATTACK_LIGHT_2` and `DASH_ATTACK_LIGHT`. The boss finisher (`code/design/boss_finisher.gd`) plays these directly.
   - **The boss finisher takes control of the player for about 3 seconds.** It pauses the player's physics (`set_physics_process(false)`) and moves the player itself. Anything added to the player's `_process` still runs during the finisher, so don't put movement or animation there.
   - **In `fruit_minion.gd`:** `PLAYER_HITS`, `PLAYER_BOX`, `PLAYER_PUSH`, `PLAYER_SAFE_TIME`, `_player_safe_until`, `respawn_time`, `state`, `state_time` and `State`.
+- **The combo counter, `code/combo_hud.gd`:** a CanvasLayer the player adds in `_ready`.
+  - **Counting:** a hit is any enemy in `"enemies"` whose `hp` drops, so enemies need an `hp` value that goes down when hit.
+  - **Timing:** the combo ends 2s (real time) after the last hit. The counter shows from the second hit.
+  - **Ranks:** NICE at 5, GREAT at 10, JUICY! at 20, TROPICAL!! at 35 and FRESH SQUEEZED at 50 (cycles through the colors).
+  - **Style:** BOOM's pixel-art style (Morgan's call). It's drawn at the game's own resolution with rects only, in his palette (the constants at the top), with a hand-made 5x7 pixel font (`GLYPHS`, only the letters the words need). Nothing is drawn behind the number (Morgan removed the crescent).
+  - **Scripted hits:** moves can add hits directly with `get_tree().call_group("combo_hud", "add_hits", n)`, and end the combo with `call_group("combo_hud", "finish")`. `finish()` shows the full total at once, then ignores all hits until that combo has left the screen.
+  - **The boss finisher** adds 4 hits per flurry slash (26 slashes, 104 hits) and calls `finish()` the moment the final cut starts, so the count stops there (Morgan's call).
+- **The living background, `code/design/living_background.gd`:** the gym's "LivingBackground" node. Morgan asked for it through the ENEMY session, wanting a premium look with a wow factor. It's in BOOM's pixel style: flat colors with one shade each, opaque, greens from the fruit art and accents from BOOM's sheet.
+  - **Background:** a sky (a CanvasLayer at -100), then parallax layers that repeat every 960px: a far volcano and canopy with drifting clouds, shimmering light shafts, palms, and flowering bushes. The scene's "Backdrop" is hidden at runtime.
+  - **Grass and flowers** on every StaticBody2D top, except bodies named Wall*, Ceiling*, Monster* or PitBed.
+    - Dense (Morgan's call): about one blade per pixel. Blades behind the player are 8–17px tall (z -2); 20% sit in front of the feet at 5–9px (z 2).
+    - Only a barely-there breeze (Morgan's call): tips shift a pixel now and then. Grass really moves only when the player passes or a shockwave hits it. It parts from the feet and gets brushed in the running direction, up to about 12px at full speed. It's springy (low damping), so it swings for about a second after you pass.
+    - Drawn as merged vertical strips to keep the frame cost down.
+  - **Water** fills the open parts of "PitBed" tops, 24px deep, drawn in front of the player (z 2), with waves, splashes and wading.
+  - **Shallow water (Morgan's call):**
+    - **Where:** floors at least 480px long get about one 140–300px stretch per 900px, flooded 3px deep. The placement is seeded, so it's the same every run. It never overlaps a block and has no grass.
+    - **Spray:** running through it throws spray up and behind, scaling with speed into a rooster tail at a gallop. Landing in it splashes, and reaching top speed in it bursts.
+  - **W in water = a wave, not dust (Morgan's call):**
+    - **The wave:** ATTACK_HEAVY_SMASH, DASH_ATTACK_HEAVY_IMPACT or CHARGED_SMASH with the feet in water rolls a curling wave both ways (`W_WAVES`: height, reach, damage = 18/150/2, 22/190/3, 30/260/4).
+    - **Hits:** it stops at walls, and calls `take_hit` once per enemy (push 220 out, 220 up).
+    - **No dust:** ENEMY's `movement_dust.gd` and `charge_fx.gd` skip W dust in water by asking `in_water(pos)` on the node in the `"living_background"` group.
+  - **Leaves and pollen** drift around the camera.
+  - **Reactions:** reaching the top speed level, LAND, ATTACK_HEAVY_SMASH, DASH_ATTACK_HEAVY_IMPACT, CHARGED_SMASH (the strongest) and every enemy hp drop send a shockwave ripple through the grass and leaves. A flash (a big jump in one frame) cuts a path through the grass.
 - **`code/design/training_dummy.gd` and `scene/design/flash_test.tscn`:** placeholder dummies set up to test the flash: a row of three, one next to a pit, one next to a wall.
 - **Fixes in `player.gd`, approved by BOOM:**
   - `_state_brake`: a quick double-tap that landed during the braking time was ignored.
@@ -90,3 +122,4 @@ These come from `player.gd`, with Godot's default gravity of 980.
 ## Other Claude sessions
 Other sessions may work in separate copies of the project under `.claude/worktrees/`. Their changes don't show in the game Morgan runs until they're merged into the main folder. Don't commit the `.claude/` folder.
 Only one session should change `code/player.gd` at a time. Check with Morgan before editing it, or you'll get merge conflicts.
+**Watch out for the Godot editor overwriting files.** If Morgan's editor has a script open with an old copy, pressing Cmd+R saves it back over newer changes on disk. This happened to `player.gd` on 2026-09-29. After editing a file, check your edit is still there if something seems off, and remind Morgan to choose "Reload" when Godot says files changed on disk.
