@@ -89,6 +89,28 @@ const SHAKE_SMALL_TIME := 0.15
 const SHAKE_BIG_STRENGTH := 16.0
 const SHAKE_BIG_TIME := 0.40
 
+# Thunderclap flash: at full sprint, an enemy ahead sets it off automatically. Instantly cut
+# through every enemy in the lane, reappear past the last one and keep sprinting.
+# Enemies: group "enemies" + take_hit().
+const FLASH_TRIGGER_RANGE := 120.0   # enemy this close ahead starts it
+const FLASH_LANE_HEIGHT := 48.0      # enemies this far above/below the feet still count
+const FLASH_MIN_DIST := 160.0
+const FLASH_MAX_DIST := 240.0
+const FLASH_OVERSHOOT := 32.0        # land this far past the last enemy
+const FLASH_DAMAGE := 3
+const FLASH_PUSH := Vector2(80, -160)
+
+# Counter: press Q while an enemy is lunging at you -> one massive horizontal slash, on the spot
+# (no moving). It cuts the lunging enemy in half, and every other enemy lined up behind it too.
+# Enemies opt in with is_counterable() (true mid-lunge) and cut_in_half(dir).
+const COUNTER_RANGE := 96.0
+const COUNTER_SLASH_LENGTH := 320.0  # reaches past the edge of the screen, unless a wall stops it
+const COUNTER_SLASH_LANE := 64.0     # enemies this far above/below your feet get chopped too
+const COUNTER_BLOCKED := [          # committed moves that can't be interrupted by a counter
+	State.ATTACK_HEAVY_WINDUP, State.ATTACK_HEAVY_SMASH,
+	State.DASH_ATTACK_HEAVY_WINDUP, State.DASH_ATTACK_HEAVY_SLAM, State.DASH_ATTACK_HEAVY_IMPACT,
+]
+
 @onready var state_label = $Label
 @onready var camera = $Camera2D
 
@@ -102,6 +124,7 @@ var jump_buffer_timer := 0.0
 var jump_cut_done := false
 var air_jumps_left := MAX_AIR_JUMPS
 var combo_queued := false
+var light_in_air := false        # the current light attack started in the air (landing cancels it)
 var resume_level := 0
 var last_tap_time := {-1: -10.0, 1: -10.0}
 var _double_tap_dir := 0
@@ -110,10 +133,14 @@ var shake_strength := 0.0
 var shake_duration := 0.0
 var shake_time_left := 0.0
 
+var _sparks: CPUParticles2D
+
 
 func _ready():
+	add_to_group("player")
 	_ensure_action("attack_light", KEY_Q)
 	_ensure_action("attack_heavy", KEY_W)
+	_sparks = _make_sparks()
 	_set_state(State.IDLE)
 
 
@@ -200,6 +227,12 @@ func _physics_process(delta):
 	var dir := Input.get_axis("ui_left", "ui_right")
 	_track_double_tap()
 
+	# the counter beats everything else Q would do this frame
+	if Input.is_action_just_pressed("attack_light") and _try_counter():
+		move_and_slide()
+		sprite.flip_h = facing < 0
+		return
+
 	match state:
 		State.IDLE, State.WALK, State.RUN, State.SPRINT:
 			_state_ground_move(delta, dir)
@@ -278,6 +311,7 @@ func _try_attack() -> bool:
 		else:
 			velocity.x = facing * LIGHT_LUNGE
 			combo_queued = false
+			light_in_air = false
 			_set_state(State.ATTACK_LIGHT_1)
 		return true
 	return false
@@ -288,7 +322,7 @@ func _state_ground_move(delta, dir):
 	if not is_on_floor():
 		_set_state(State.JUMP_FALL)
 		return
-	if _try_jump() or _try_attack():
+	if _try_jump() or _try_attack() or _try_flash(dir):
 		return
 
 	if dir != 0:
@@ -347,6 +381,11 @@ func _state_brake(delta, dir):
 	if dir != 0:
 		var d := int(sign(dir))
 		if d == facing:
+			if _double_tap_dir == d:
+				speed_level = 2
+				hold_time = TIME_TO_LEVEL_3 - 0.5
+				_set_state(State.RUN)
+				return
 			hold_time = 0.0
 			speed_level = max(speed_level, 1)
 			_set_state(State.WALK)
@@ -379,6 +418,9 @@ func _state_air(delta, dir):
 			_set_state(State.DOUBLE_JUMP)
 			return
 
+	if _try_air_attack():
+		return
+
 	# กระโดดสั้น/ยาวตามระยะเวลากดปุ่ม (ใช้กับดับเบิ้ลจัมพ์ด้วย)
 	if not jump_cut_done and velocity.y < 0.0 and not Input.is_action_pressed("ui_accept"):
 		velocity.y *= JUMP_CUT
@@ -400,21 +442,30 @@ func _state_air(delta, dir):
 
 
 func _state_land(delta, dir):
-	velocity.x = move_toward(velocity.x, 0.0, 900.0 * delta)
+	if dir == 0:
+		velocity.x = move_toward(velocity.x, 0.0, 900.0 * delta)
 	if _try_jump():
 		return
 	if state_time >= LAND_TIME:
 		if dir != 0:
-			hold_time = 0.0
-			speed_level = 1
-			_set_state(State.WALK)
+			if speed_level == 0:
+				speed_level = 1
+				hold_time = 0.0
+			_set_state([State.IDLE, State.WALK, State.RUN, State.SPRINT][speed_level])
 		else:
 			speed_level = 0
 			_set_state(State.IDLE)
 
 
 func _state_attack_light(delta):
-	velocity.x = move_toward(velocity.x, 0.0, 600.0 * delta)
+	# landing in the middle of an air light attack cancels it: show the landing instead
+	if light_in_air and is_on_floor():
+		light_in_air = false
+		combo_queued = false
+		_set_state(State.LAND)
+		return
+	if is_on_floor():
+		velocity.x = move_toward(velocity.x, 0.0, 600.0 * delta)   # in the air you keep drifting
 	if Input.is_action_just_pressed("attack_light"):
 		combo_queued = true
 
@@ -422,15 +473,33 @@ func _state_attack_light(delta):
 	if state_time >= duration:
 		if combo_queued:
 			combo_queued = false
-			velocity.x = facing * LIGHT_LUNGE
+			if is_on_floor():
+				velocity.x = facing * LIGHT_LUNGE
 			# สลับท่า: 1 -> 2, 2 -> 1 วนไปเรื่อยๆ
 			if state == State.ATTACK_LIGHT_1:
 				_set_state(State.ATTACK_LIGHT_2)
 			else:
 				_set_state(State.ATTACK_LIGHT_1)
+		elif not is_on_floor():
+			_set_state(State.JUMP_FALL)   # keeps speed_level, so air control stays the same
 		else:
 			speed_level = 0
 			_set_state(State.IDLE)     # ปล่อยปุ่มเมื่อไหร่ กลับ IDLE ได้จากทั้ง 1 และ 2
+
+
+# ---------- Air attacks: Q = light combo (no lunge), W = slam straight down (no hover first) ----------
+func _try_air_attack() -> bool:
+	if Input.is_action_just_pressed("attack_heavy"):
+		velocity.x = 0.0
+		speed_level = 0
+		_set_state(State.DASH_ATTACK_HEAVY_SLAM)
+		return true
+	if Input.is_action_just_pressed("attack_light"):
+		combo_queued = false
+		light_in_air = true
+		_set_state(State.ATTACK_LIGHT_1)
+		return true
+	return false
 
 
 # ---------- โจมตีหนัก ง้าง -> ทุบ (หยุดเคลื่อนไหว, กล้องสั่นเล็ก) ----------
@@ -476,3 +545,208 @@ func _state_dash_heavy_impact(_delta):
 	if state_time >= DASH_HEAVY_IMPACT_TIME:
 		speed_level = 0
 		_set_state(State.IDLE)
+
+
+# ---------- Thunderclap flash: sprint into an enemy -> cut through, reappear, keep sprinting ----------
+func _try_flash(dir) -> bool:
+	if speed_level < 3 or int(sign(dir)) != facing or not is_on_floor():
+		return false
+	if _enemies_ahead(FLASH_TRIGGER_RANGE).is_empty():
+		return false
+	_flash_strike()
+	return true
+
+
+func _flash_strike():
+	var start := global_position
+	var targets := _enemies_ahead(FLASH_MAX_DIST)
+	var dist := FLASH_MIN_DIST
+	for e in targets:
+		dist = maxf(dist, (e.global_position.x - start.x) * facing + FLASH_OVERSHOOT)
+	dist = minf(dist, FLASH_MAX_DIST)
+	dist = _flash_clear_distance(dist)      # stop at walls
+	dist = _flash_ground_distance(dist)     # never land over a pit
+	for e in targets:
+		if (e.global_position.x - start.x) * facing <= dist and e.has_method("take_hit"):
+			e.take_hit(FLASH_DAMAGE, Vector2(facing * FLASH_PUSH.x, FLASH_PUSH.y))
+	global_position.x = start.x + facing * dist
+	velocity.x = facing * SPEEDS[speed_level]      # come out of it still sprinting
+	_flash_streak(start + Vector2(0, -20), global_position + Vector2(0, -20))
+	_sparks.restart()                               # burst where it lands
+	_shake(SHAKE_BIG_STRENGTH, SHAKE_SMALL_TIME)
+	_set_state(State.SPRINT)
+
+
+func _try_counter() -> bool:
+	if state in COUNTER_BLOCKED:
+		return false
+	var target: Node2D = null
+	var best := COUNTER_RANGE
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is Node2D and e.has_method("is_counterable") and e.is_counterable():
+			var d := global_position.distance_to(e.global_position)
+			if d <= best:
+				best = d
+				target = e
+	if target == null:
+		return false
+	var side := int(signf(target.global_position.x - global_position.x))
+	if side != 0:
+		facing = side
+	velocity.x = 0.0         # cut on the spot, no sliding
+	speed_level = 0
+	hold_time = 0.0
+	var reach := _counter_reach(global_position.y - 20.0)   # sword height
+	# no hp check needed: cut_in_half itself ignores enemies that are already dead
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node2D) or not e.has_method("cut_in_half"):
+			continue
+		var d: float = (e.global_position.x - global_position.x) * facing
+		var in_line: bool = d > -16.0 and d <= reach and absf(e.global_position.y - global_position.y) <= COUNTER_SLASH_LANE
+		if e == target or in_line:
+			e.cut_in_half(facing)
+	_big_slash(reach)
+	_sparks.restart()
+	_shake(SHAKE_BIG_STRENGTH, SHAKE_BIG_TIME)
+	# the sword swing that makes the slash
+	combo_queued = false
+	light_in_air = not is_on_floor()
+	_set_state(State.ATTACK_LIGHT_2)
+	return true
+
+
+# how far the counter slash goes before a wall stops it
+func _counter_reach(y: float) -> float:
+	var from := Vector2(global_position.x, y)
+	var q := PhysicsRayQueryParameters2D.create(from, from + Vector2(facing * COUNTER_SLASH_LENGTH, 0), collision_mask, _flash_exclude())
+	var hit := get_world_2d().direct_space_state.intersect_ray(q)
+	return COUNTER_SLASH_LENGTH if hit.is_empty() else absf(hit.position.x - from.x)
+
+
+# the counter slash: starts as the sword's arc (over the shoulder round to straight ahead) and
+# shoots out from the tip. Starts slow and speeds up, holds, then thins and fades.
+func _big_slash(reach: float):
+	var hilt := global_position + Vector2(0, -20)
+	var path := PackedVector2Array()
+	for i in 9:
+		var a := deg_to_rad(lerpf(-110.0, 0.0, i / 8.0))
+		path.append(hilt + Vector2(cos(a) * facing, sin(a)) * 20.0)
+	path.append(hilt + Vector2(facing * reach, 0))
+	for look in [[12.0, Color(1.0, 0.9, 0.35, 0.5)], [3.0, Color(1.0, 1.0, 0.9)]]:   # soft glow, bright core
+		var line := Line2D.new()
+		line.top_level = true
+		line.z_index = 5
+		line.width = look[0]
+		line.default_color = look[1]
+		line.joint_mode = Line2D.LINE_JOINT_ROUND
+		line.end_cap_mode = Line2D.LINE_CAP_ROUND
+		add_child(line)
+		var t := line.create_tween()
+		t.tween_method(func(k: float): line.points = _path_until(path, k), 0.0, 1.0, 0.1) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		t.tween_interval(0.05)
+		t.tween_property(line, "width", 0.0, 0.25)
+		t.parallel().tween_property(line, "modulate:a", 0.0, 0.25)
+		t.tween_callback(line.queue_free)
+
+
+# the first k (0..1) of a line of points, measured by length
+func _path_until(path: PackedVector2Array, k: float) -> PackedVector2Array:
+	var total := 0.0
+	for i in range(1, path.size()):
+		total += path[i - 1].distance_to(path[i])
+	var left := total * k
+	var out := PackedVector2Array([path[0]])
+	for i in range(1, path.size()):
+		var seg := path[i - 1].distance_to(path[i])
+		if left <= seg:
+			out.append(path[i - 1].lerp(path[i], left / seg if seg > 0.0 else 1.0))
+			return out
+		left -= seg
+		out.append(path[i])
+	return out
+
+
+func _enemies_ahead(reach: float) -> Array:
+	var found := []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node2D) or not _is_alive(e):
+			continue
+		var d: float = (e.global_position.x - global_position.x) * facing
+		if d > 0.0 and d <= reach and absf(e.global_position.y - global_position.y) <= FLASH_LANE_HEIGHT:
+			found.append(e)
+	return found
+
+
+func _is_alive(e: Node) -> bool:
+	if e.has_method("is_alive"):
+		return e.is_alive()
+	var hp = e.get("hp")
+	return hp == null or hp > 0
+
+
+# how far the body can slide sideways before a wall stops it (enemies don't block it)
+func _flash_clear_distance(dist: float) -> float:
+	var body: CollisionShape2D = $CollisionShape2D
+	var q := PhysicsShapeQueryParameters2D.new()
+	q.shape = body.shape
+	q.transform = body.global_transform.translated(Vector2(0, -4))   # just off the floor
+	q.motion = Vector2(facing * dist, 0)
+	q.collision_mask = collision_mask
+	q.exclude = _flash_exclude()
+	return dist * get_world_2d().direct_space_state.cast_motion(q)[0]
+
+
+# step back from the landing spot until there is floor under it
+func _flash_ground_distance(dist: float) -> float:
+	var space := get_world_2d().direct_space_state
+	var d := dist
+	while d > 0.0:
+		var x := global_position.x + facing * d
+		var q := PhysicsRayQueryParameters2D.create(Vector2(x, global_position.y - 8), Vector2(x, global_position.y + 24), collision_mask, _flash_exclude())
+		if not space.intersect_ray(q).is_empty():
+			return d
+		d -= 8.0
+	return 0.0
+
+
+func _flash_exclude() -> Array[RID]:
+	var ex: Array[RID] = [get_rid()]
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is CollisionObject2D:
+			ex.append(e.get_rid())
+	return ex
+
+
+func _flash_streak(from: Vector2, to: Vector2):
+	var line := Line2D.new()
+	line.top_level = true
+	line.points = PackedVector2Array([from, to])
+	line.width = 10.0
+	line.default_color = Color(1.0, 0.95, 0.45)
+	add_child(line)
+	var t := line.create_tween()
+	t.tween_property(line, "width", 0.0, 0.25)
+	t.parallel().tween_property(line, "modulate:a", 0.0, 0.25)
+	t.tween_callback(line.queue_free)
+
+
+func _make_sparks() -> CPUParticles2D:
+	var p := CPUParticles2D.new()
+	p.emitting = false
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.amount = 24
+	p.lifetime = 0.25
+	p.position = Vector2(0, -20)
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 16.0
+	p.spread = 180.0
+	p.gravity = Vector2.ZERO
+	p.initial_velocity_min = 40.0
+	p.initial_velocity_max = 120.0
+	p.scale_amount_min = 1.0
+	p.scale_amount_max = 2.0
+	p.color = Color(1.0, 0.95, 0.45)
+	add_child(p)
+	return p
