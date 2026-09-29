@@ -4,6 +4,12 @@
 [ext_resource type="Script" uid="uid://d4lgdh74p6vw7" path="res://code/live_reload.gd" id="2_live"]
 [ext_resource type="PackedScene" path="res://scene/design/fruit_minion.tscn" id="3_fruit"]
 [ext_resource type="PackedScene" path="res://scene/design/fruit_boss.tscn" id="4_boss"]
+[ext_resource type="Script" path="res://code/design/sound_barrier.gd" id="5_boom"]
+[ext_resource type="Script" path="res://code/design/gallop_meter.gd" id="6_meter"]
+[ext_resource type="Script" path="res://code/design/movement_dust.gd" id="7_dust"]
+[ext_resource type="Script" path="res://code/design/living_background.gd" id="8_living"]
+[ext_resource type="Script" path="res://code/design/charge_fx.gd" id="9_charge"]
+[ext_resource type="Script" path="res://code/design/breakable_door.gd" id="10_door"]
 
 [sub_resource type="RectangleShape2D" id="Rect_64x640"]
 size = Vector2(64, 640)
@@ -59,8 +65,8 @@ size = Vector2(224, 48)
 [sub_resource type="RectangleShape2D" id="Rect_1152x64"]
 size = Vector2(1152, 64)
 
-[sub_resource type="RectangleShape2D" id="Rect_64x112"]
-size = Vector2(64, 112)
+[sub_resource type="RectangleShape2D" id="Rect_64x400"]
+size = Vector2(64, 400)
 
 [node name="GymMovement" type="Node2D" unique_id=603390077]
 
@@ -925,30 +931,50 @@ color = Color(0.22, 0.25, 0.32, 1)
 polygon = PackedVector2Array(-576, -32, 576, -32, 576, 32, -576, 32)
 
 [node name="Gate" type="StaticBody2D" parent="BossArena"]
-position = Vector2(-1696, -56)
+position = Vector2(-1696, -312)
 
 [node name="Shape" type="CollisionShape2D" parent="BossArena/Gate"]
-shape = SubResource("Rect_64x112")
+shape = SubResource("Rect_64x400")
 
 [node name="Look" type="Polygon2D" parent="BossArena/Gate"]
 color = Color(0.22, 0.25, 0.32, 1)
-polygon = PackedVector2Array(-32, -56, 32, -56, 32, 56, -32, 56)
+polygon = PackedVector2Array(-32, -200, 32, -200, 32, 200, -32, 200)
+
+[node name="Door" type="StaticBody2D" parent="BossArena"]
+position = Vector2(-1696, 0)
+script = ExtResource("10_door")
 
 [node name="GateLabel" type="Label" parent="BossArena"]
-offset_left = -1776.0
-offset_top = -140.0
-offset_right = -1616.0
-offset_bottom = -128.0
+offset_left = -1656.0
+offset_top = -130.0
+offset_right = -1416.0
+offset_bottom = -118.0
 theme_override_font_sizes/font_size = 8
 theme_override_colors/font_color = Color(0.55, 0.2, 0.15, 1)
-text = "<- BOSS: double-jump the gate"
+text = "<- BOSS: smash the gate (attack it, or gallop into it)"
 horizontal_alignment = 1
 
 [node name="BigPineapple" parent="BossArena" instance=ExtResource("4_boss")]
-position = Vector2(-2400, 0)
+position = Vector2(-1980, 0)
+leash_right = 220.0
 
 [node name="Player" parent="." unique_id=1712739035 instance=ExtResource("1_player")]
 position = Vector2(128, -8)
 
 [node name="LiveReload" type="Node" parent="."]
 script = ExtResource("2_live")
+
+[node name="SoundBarrier" type="Node2D" parent="."]
+script = ExtResource("5_boom")
+
+[node name="GallopMeter" type="Node2D" parent="."]
+script = ExtResource("6_meter")
+
+[node name="MovementDust" type="Node2D" parent="."]
+script = ExtResource("7_dust")
+
+[node name="LivingBackground" type="Node2D" parent="."]
+script = ExtResource("8_living")
+
+[node name="ChargeFX" type="Node2D" parent="."]
+script = ExtResource("9_charge")

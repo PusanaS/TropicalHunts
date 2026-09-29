@@ -85,7 +85,7 @@ offset_right = 460
 offset_bottom = -126
 theme_override_colors/font_color = Color(0.55, 0.2, 0.15, 1)
 theme_override_font_sizes/font_size = 10
-text = "FLASH TEST - hold right until you sprint (or double-tap right),\nthen run into the red dummies"
+text = "FLASH TEST - double-tap right and keep holding until you gallop,\nthen run into the red dummies"
 horizontal_alignment = 1
 
 [node name="Test1" type="Label" parent="Labels"]
