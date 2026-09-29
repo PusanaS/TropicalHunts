@@ -1,0 +1,290 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://code/design/fruit_minion.gd" id="1_qpf60"]
+[ext_resource type="Texture2D" path="res://scene/design/art/mango_minion-Sheet.png" id="2_sheet"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_idle0"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 0, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_idle1"]
+atlas = ExtResource("2_sheet")
+region = Rect2(40, 0, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_idle2"]
+atlas = ExtResource("2_sheet")
+region = Rect2(80, 0, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_idle3"]
+atlas = ExtResource("2_sheet")
+region = Rect2(120, 0, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_walk0"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 40, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_walk1"]
+atlas = ExtResource("2_sheet")
+region = Rect2(40, 40, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_walk2"]
+atlas = ExtResource("2_sheet")
+region = Rect2(80, 40, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_walk3"]
+atlas = ExtResource("2_sheet")
+region = Rect2(120, 40, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_notice0"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 80, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_notice1"]
+atlas = ExtResource("2_sheet")
+region = Rect2(40, 80, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_notice2"]
+atlas = ExtResource("2_sheet")
+region = Rect2(80, 80, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_notice3"]
+atlas = ExtResource("2_sheet")
+region = Rect2(120, 80, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_run0"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 120, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_run1"]
+atlas = ExtResource("2_sheet")
+region = Rect2(40, 120, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_run2"]
+atlas = ExtResource("2_sheet")
+region = Rect2(80, 120, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_run3"]
+atlas = ExtResource("2_sheet")
+region = Rect2(120, 120, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_windup0"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 160, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_windup1"]
+atlas = ExtResource("2_sheet")
+region = Rect2(40, 160, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_windup2"]
+atlas = ExtResource("2_sheet")
+region = Rect2(80, 160, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_windup3"]
+atlas = ExtResource("2_sheet")
+region = Rect2(120, 160, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_lunge0"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 200, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_lunge1"]
+atlas = ExtResource("2_sheet")
+region = Rect2(40, 200, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_dizzy0"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 240, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_dizzy1"]
+atlas = ExtResource("2_sheet")
+region = Rect2(40, 240, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_dizzy2"]
+atlas = ExtResource("2_sheet")
+region = Rect2(80, 240, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_dizzy3"]
+atlas = ExtResource("2_sheet")
+region = Rect2(120, 240, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_hurt0"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 280, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_hurt1"]
+atlas = ExtResource("2_sheet")
+region = Rect2(40, 280, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_die0"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 320, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_die1"]
+atlas = ExtResource("2_sheet")
+region = Rect2(40, 320, 40, 40)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_die2"]
+atlas = ExtResource("2_sheet")
+region = Rect2(80, 320, 40, 40)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_mango"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_idle0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_idle1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_idle2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_idle3")
+}],
+"loop": true,
+"name": &"IDLE",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_walk0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_walk1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_walk2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_walk3")
+}],
+"loop": true,
+"name": &"WALK",
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_notice0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_notice1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_notice2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_notice3")
+}],
+"loop": false,
+"name": &"NOTICE",
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_run0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_run1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_run2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_run3")
+}],
+"loop": true,
+"name": &"RUN",
+"speed": 12.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_windup0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_windup1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_windup2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_windup3")
+}],
+"loop": false,
+"name": &"WINDUP",
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_lunge0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_lunge1")
+}],
+"loop": true,
+"name": &"LUNGE",
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_dizzy0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_dizzy1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_dizzy2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_dizzy3")
+}],
+"loop": true,
+"name": &"DIZZY",
+"speed": 8.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_hurt0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_hurt1")
+}],
+"loop": false,
+"name": &"HURT",
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_die0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_die1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_die2")
+}],
+"loop": false,
+"name": &"DIE",
+"speed": 12.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_02t2s"]
+size = Vector2(22, 22)
+
+[node name="FruitMinion" type="CharacterBody2D" unique_id=10486570]
+collision_layer = 4
+script = ExtResource("1_qpf60")
+
+[node name="Sprite" type="AnimatedSprite2D" parent="." unique_id=1596420937]
+position = Vector2(0, -16)
+sprite_frames = SubResource("SpriteFrames_mango")
+animation = &"WALK"
+autoplay = "WALK"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=88049667]
+position = Vector2(0, -11)
+shape = SubResource("RectangleShape2D_02t2s")
+
+[node name="LedgeCheck" type="RayCast2D" parent="." unique_id=1881641931]
+position = Vector2(14, -2)
+target_position = Vector2(0, 12)
