@@ -1,8 +1,8 @@
 extends Node2D
 # "Breaking the sound barrier": the moment the player reaches full speed (the gallop, player.gd's top
 # speed level), a sonic boom goes off behind them: two shock rings, speed lines, a burst of dust and
-# a screen shake. While the gallop lasts, thin speed lines trail behind. It fires again only after
-# slowing down.
+# a screen shake, with the gallop sound. While the gallop lasts, thin speed lines trail behind. It
+# fires again only after slowing down.
 # Drop this node into any level (like LiveReload). It only watches the player; player.gd is untouched.
 # PLACEHOLDER effects.
 
@@ -18,8 +18,12 @@ const TRAIL_EVERY := 0.05
 const SHAKE := Vector2(6, 0.25)           # strength, seconds
 const WHITE := Color(1.0, 0.97, 0.9)
 const DUST := Color(0.93, 0.87, 0.86)
+const GALLOP_SOUND := preload("res://sounds/GALLOP_SOUND_freesound_community-electric-impact-37128.mp3")
+const SOUND_DB := 0.0                     # gallop sound volume
+const SOUND_SKIP := 0.042                 # the file starts with 44ms of near-silence; skip it so the hit lands with the boom
 
 var player: CharacterBody2D = null
+var _sound := AudioStreamPlayer.new()
 var _top_level := 4                       # full speed = the last entry in player.gd's SPEEDS
 var _last_level := 0
 var _trail_timer := 0.0
@@ -28,6 +32,9 @@ var _rings: Array = []                    # each: {"pos", "dir", "age", "delay"}
 
 func _ready():
 	z_index = 5
+	_sound.stream = GALLOP_SOUND
+	_sound.volume_db = SOUND_DB
+	add_child(_sound)
 
 
 func _process(delta: float):
@@ -57,6 +64,7 @@ func _boom():
 	for i in BOOM_LINES:
 		_speed_line(randf_range(-40.0, 0.0), randf_range(40.0, 80.0), 2.0, 0.25)
 	_dust(dir)
+	_sound.play(SOUND_SKIP)               # restarts it if a gallop starts again before it ends
 	if player.has_method("_shake"):
 		player._shake(SHAKE.x, SHAKE.y)
 

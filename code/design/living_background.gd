@@ -1,8 +1,9 @@
 extends Node2D
 # Living background: add this node to a level scene (the gym has it as "LivingBackground").
 # BOOM's pixel style: 1:1 pixels, flat colours with one shade tone, no outlines, fully opaque.
-#  - sky and sun, then three parallax jungle layers: far volcano + canopy (with drifting clouds
-#    and light shafts), palms, and flowering bushes
+#  - sky and sun, then six parallax layers, each slower the farther away it is: drifting clouds, the
+#    volcano range, the far canopy (with light shafts), a row of distant trees, palms, and flowering
+#    bushes. Farther layers are lighter and bluer.
 #  - grass and flowers on every floor: they sway in the wind and part around the player
 #  - drifting leaves and pollen
 #  - water in the open parts of "PitBed" bodies: waves, splashes, wading
@@ -30,6 +31,9 @@ const W_WAVES := {
 const WAVE_SPEED := 260.0
 const WAVE_W := 22.0             # width of the crest
 const WAVE_PUSH := Vector2(220, -220)
+const WAVE_SOUND := preload("res://sounds/WAVE_SOUND_universfield-water-splash-199583.mp3")
+const WAVE_SOUND_DB := 0.0
+const WAVE_SOUND_SKIP := 0.17    # the file starts with 0.17 s of near-silence, then swells as the wave rolls out
 const NO_GRASS := ["Wall", "Ceiling", "Monster", "PitBed"]  # no grass on bodies named like this
 const LEAVES := 16
 const POLLEN := 22
@@ -54,6 +58,8 @@ var c_mountain := Color("6aa3b3")
 var c_mountain_shade := Color("5a91a2")
 var c_far := Color("5e917d")
 var c_far_shade := Color("4f7f6d")
+var c_trees := Color("587f5a")
+var c_trees_shade := Color("48694b")
 var c_shaft := Color("eaf0d6")
 var c_mid := Color("526e36")
 var c_mid_shade := Color("3c522a")
@@ -73,9 +79,11 @@ var c_foam := Color("ecdfdb")
 var _t := 0.0
 var _sky: Node2D
 var _sky_size := Vector2.ZERO
+var _mountains: Node2D
 var _far: Node2D
 var _clouds: Node2D
 var _shafts := []            # two phases of the light shafts, shown in turn so they shimmer
+var _trees: Node2D
 var _mid: Node2D
 var _near: Node2D
 var _grass_back: Node2D
@@ -110,6 +118,7 @@ var _last_pos := Vector2.ZERO
 var _has_last_pos := false
 var _wade_timer := 0.0
 var _enemy_hp := {}
+var _wave_sound := AudioStreamPlayer.new()
 
 
 func _ready():
@@ -126,9 +135,11 @@ func _ready():
 	_sky.draw.connect(_draw_sky.bind(_sky))
 	sky_layer.add_child(_sky)
 
-	_far = _tiles(-100, _gen_far())
+	_mountains = _tiles(-100, _gen_mountains())
 	_clouds = _tiles(-99, _gen_clouds())
-	_shafts = [_tiles(-98, _gen_shafts(0)), _tiles(-98, _gen_shafts(1))]
+	_far = _tiles(-98, _gen_far())
+	_shafts = [_tiles(-97, _gen_shafts(0)), _tiles(-97, _gen_shafts(1))]
+	_trees = _tiles(-95, _gen_trees())
 	_mid = _tiles(-90, _gen_mid())
 	_near = _tiles(-80, _gen_near())
 
@@ -141,6 +152,10 @@ func _ready():
 	_grass_front = _world_node(2, _draw_grass.bind(true))
 	_water_node = _world_node(2, _draw_water)
 	_leaves_front = _world_node(3, _draw_leaves.bind(true))
+	_wave_sound.stream = WAVE_SOUND
+	_wave_sound.volume_db = WAVE_SOUND_DB
+	_wave_sound.max_polyphony = 2
+	add_child(_wave_sound)
 
 
 func _process(delta):
@@ -153,13 +168,16 @@ func _process(delta):
 	if screen != _sky_size:
 		_sky_size = screen
 		_sky.queue_redraw()
-	_place(_far, 0.12, cam, 0.0, 165.0)
-	_place(_clouds, 0.05, cam, _t * 4.0, 60.0)
+	# speed (share of the camera's movement) and where the layer's base sits on screen
+	_place(_mountains, 0.05, cam, 0.0, 150.0)
+	_place(_clouds, 0.08, cam, _t * 4.0, 60.0)
+	_place(_far, 0.14, cam, 0.0, 160.0)
 	for s in _shafts:
 		_place(s, 0.2, cam, 0.0, 175.0)
 	_shafts[0].visible = int(_t / 0.35) % 2 == 0
 	_shafts[1].visible = not _shafts[0].visible
-	_place(_mid, 0.3, cam, 0.0, 185.0)
+	_place(_trees, 0.25, cam, 0.0, 174.0)
+	_place(_mid, 0.36, cam, 0.0, 190.0)
 	_place(_near, 0.55, cam, 0.0, 205.0)
 
 	if player:
@@ -513,6 +531,7 @@ func _make_wave(player: CharacterBody2D, pos: Vector2, w: Dictionary, params: Ar
 		_waves.append({"x": pos.x, "y": y, "dir": dir, "t0": _t, "h": params[0],
 			"reach": _wave_reach(player, pos.x, y, dir, params[1]), "damage": params[2], "hit": {}, "spray": 0.0})
 	_splash(pos.x, w["level"], 20, 220.0)
+	_wave_sound.play(WAVE_SOUND_SKIP)
 	var v: Array = w["v"]
 	var col := int(pos.x - w["x0"])
 	for c in range(maxi(col - 10, 0), mini(col + 11, int(w["n"]))):
@@ -738,7 +757,8 @@ func _disk(out: Array, cx: float, cy: float, r: int, base: Color, shade: Color):
 		out.append([Rect2(roundf(cx) - w, roundf(cy) + dy, 2 * w + 1, 1), base if dy * 3 < r else shade])
 
 
-func _gen_far() -> Array:
+# the volcano and the hills around it
+func _gen_mountains() -> Array:
 	var out := []
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11
@@ -748,11 +768,38 @@ func _gen_far() -> Array:
 		var hills := 34.0 + 10.0 * sin(TAU * 2.0 * fx / TILE + 1.3) + 6.0 * sin(TAU * 5.0 * fx / TILE + 0.4)
 		var volcano := minf(maxf(0.0, 96.0 - absf(fx - peak) * 0.6), 82.0)     # flat-topped cone
 		var top := -roundf(maxf(hills, volcano))
+		out.append([Rect2(x, top, 1, 420 - top), c_mountain_shade if fx > peak and volcano > hills else c_mountain])
+	return out
+
+
+# the far jungle canopy in front of the mountains
+func _gen_far() -> Array:
+	var out := []
+	for x in int(TILE):
+		var fx := float(x)
 		var canopy := -roundf(18.0 + 6.0 * sin(TAU * 3.0 * fx / TILE + 2.2) + 5.0 * absf(sin(TAU * 24.0 * fx / TILE)))
-		if top < canopy:
-			out.append([Rect2(x, top, 1, canopy - top), c_mountain_shade if fx > peak and volcano > hills else c_mountain])
 		out.append([Rect2(x, canopy, 1, 12), c_far])
 		out.append([Rect2(x, canopy + 12, 1, 420), c_far_shade])
+	return out
+
+
+# a row of distant broadleaf trees (round crowns of 3 blobs on thin trunks) over a band of undergrowth
+func _gen_trees() -> Array:
+	var out := []
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 37
+	for i in 9:
+		var cx := rng.randf_range(0.0, TILE)
+		var h := rng.randf_range(34.0, 58.0)
+		var r := rng.randi_range(11, 17)
+		out.append([Rect2(roundf(cx) - 1, -h, 2, h), c_trees_shade])
+		_disk(out, cx - r * 0.7, -h + 5.0, r - 5, c_trees, c_trees_shade)
+		_disk(out, cx + r * 0.8, -h + 4.0, r - 4, c_trees, c_trees_shade)
+		_disk(out, cx, -h, r, c_trees, c_trees_shade)
+	for x in int(TILE):
+		var top := -roundf(12.0 + 4.0 * sin(TAU * 4.0 * x / TILE + 0.7) + 3.0 * absf(sin(TAU * 20.0 * x / TILE)))
+		out.append([Rect2(x, top, 1, 8), c_trees])
+		out.append([Rect2(x, top + 8, 1, 420), c_trees_shade])
 	return out
 
 

@@ -17,7 +17,7 @@ Repo: https://github.com/PusanaS/TropicalHunts (owned by BOOM).
 2. **Design scenes go in `scene/design/`.** Add `scene/player.tscn` to them as an instance, not a copy. Don't turn on "Editable Children".
 3. **Don't change the main scene** or settings in `project.godot`. Morgan runs individual scenes with Cmd+R ("Run Current Scene").
 4. **Monster art and animation belong to Violeta and BOOM.** Anything we make is a placeholder. Label it that way.
-5. **Don't commit, create branches, or push** without asking.
+5. **Work directly on `main`.** The team decided this on 2026-10-01, since Morgan writes most of the code; don't make feature branches. Still **don't commit or push without asking.**
 6. **Don't open game windows.** Morgan runs the game from the Godot editor, and `LiveReload` picks up script and scene changes on its own. Tell Morgan when a change is ready to view and whether it needs Cmd+R: new images do, and so do scenes without a LiveReload node.
 7. **Work in quick rounds, and Morgan does the testing.** Don't write test scripts or run headless test runs unless Morgan asks. Make the change, then say what changed, what to try in the game, and whether it needs Cmd+R. Morgan plays it and reports back.
 8. **Explain things in plain language.** "Just give me your thoughts" means don't change anything.
@@ -69,7 +69,7 @@ These come from `player.gd`, with Godot's default gravity of 980.
     - **After:** it drops back down after 1s, waiting while anything is in the doorway, and calls `burst(pos, 3.0)` when it lands. It isn't in `"enemies"`.
     - **Background hook:** effects can shake the living background with `call_group("living_background", "burst", pos, strength)`.
 - **Don't rename these; enemy code depends on them:**
-  - **In `player.gd`:** `state`, `state_time`, `facing`, the `State` enum (its order too: new states go at the end), the `"player"` group, `_shake(strength, time)` and `_set_state()`.
+  - **In `player.gd`:** `state`, `state_time`, `facing`, the `State` enum (its order too: new states go at the end; the newest is `KNOCKBACK`), the `"player"` group, `_shake(strength, time)`, `_set_state()`, `play_swing_sound()` (the boss air combo calls it) and `bounce_back()` (the boss calls it).
   - **In `scene/player.tscn`:** the sprite node's name, `AnimatedSprite2D`, and the animations `IDLE`, `ATTACK_HEAVY_WINDUP`, `ATTACK_LIGHT_1`, `ATTACK_LIGHT_2` and `DASH_ATTACK_LIGHT`. The boss finisher (`code/design/boss_finisher.gd`) plays these directly.
   - **The boss finisher takes control of the player for about 3 seconds.** It pauses the player's physics (`set_physics_process(false)`) and moves the player itself. Anything added to the player's `_process` still runs during the finisher, so don't put movement or animation there.
   - **In `fruit_minion.gd`:** `PLAYER_HITS`, `PLAYER_BOX`, `PLAYER_PUSH`, `PLAYER_SAFE_TIME`, `_player_safe_until`, `respawn_time`, `state`, `state_time` and `State`.
@@ -81,7 +81,7 @@ These come from `player.gd`, with Godot's default gravity of 980.
   - **Scripted hits:** moves can add hits directly with `get_tree().call_group("combo_hud", "add_hits", n)`, and end the combo with `call_group("combo_hud", "finish")`. `finish()` shows the full total at once, then ignores all hits until that combo has left the screen.
   - **The boss finisher** adds 4 hits per flurry slash (26 slashes, 104 hits) and calls `finish()` the moment the final cut starts, so the count stops there (Morgan's call).
 - **The living background, `code/design/living_background.gd`:** the gym's "LivingBackground" node. Morgan asked for it through the ENEMY session, wanting a premium look with a wow factor. It's in BOOM's pixel style: flat colors with one shade each, opaque, greens from the fruit art and accents from BOOM's sheet.
-  - **Background:** a sky (a CanvasLayer at -100), then parallax layers that repeat every 960px: a far volcano and canopy with drifting clouds, shimmering light shafts, palms, and flowering bushes. The scene's "Backdrop" is hidden at runtime.
+  - **Background:** a sky (a CanvasLayer at -100), then six parallax layers that repeat every 960px, from far to near: drifting clouds, the volcano range, the far canopy, a row of distant trees, palms, and flowering bushes, with shimmering light shafts between the canopy and the trees. Each moves at its own speed (set in `_process`, 0.05 for the volcano up to 0.55 for the bushes); the prof asked for 5–6 layers. The scene's "Backdrop" is hidden at runtime.
   - **Grass and flowers** on every StaticBody2D top, except bodies named Wall*, Ceiling*, Monster* or PitBed.
     - Dense (Morgan's call): about one blade per pixel. Blades behind the player are 8–17px tall (z -2); 20% sit in front of the feet at 5–9px (z 2).
     - Only a barely-there breeze (Morgan's call): tips shift a pixel now and then. Grass really moves only when the player passes or a shockwave hits it. It parts from the feet and gets brushed in the running direction, up to about 12px at full speed. It's springy (low damping), so it swings for about a second after you pass.
@@ -100,6 +100,17 @@ These come from `player.gd`, with Godot's default gravity of 980.
 - **Fixes in `player.gd`, approved by BOOM:**
   - `_state_brake`: a quick double-tap that landed during the braking time was ignored.
   - `_state_land`: landing while holding a direction dropped you to walking speed.
+- **Sound (added 2026-10-01).** Files are in `sounds/` (attributions in `sounds/credits.rtf`). Each sound is a constant at the top of the script that plays it, with its own `_DB` volume and often a `_SKIP` (seconds of silence at the start of the file to skip, so it lands on the action).
+  - **Player (`player.gd`):** Q/W swings (`play_swing_sound`, also used by the boss air combo), wall clang when a swing reaches a wall, footsteps on frames 0 and 2 of WALK/RUN/SPRINT/GALLOP (a splash in water), jumps (`sounds/jump/jump_snow.wav`, the double jump is the same sound pitched up), the W charge build-up, and the gallop wall impact.
+  - **Elsewhere:** gallop start (`sound_barrier.gd`), gate break (`breakable_door.gd`, the Matrix sound sped up to the 1.2 s slow motion), minion damage and kill (`fruit_minion.gd`), boss armor clang, damage squelch, roll rumble and impacts (`fruit_boss.gd`), finisher slashes and final crash (`boss_finisher.gd`), counter cuts (`counter_chain.gd`), W waves (`living_background.gd`).
+  - **Laptop speakers:** Morgan tests on speakers that barely play anything under ~300 Hz. Sounds made of deep bass come out faint however loud the file is. Measure loudness with a 300 Hz high-pass, not only RMS.
+  - **Morgan's taste:** made-in-code sounds read as "too video game" except plain ones like the footsteps. Prefer cutting his recordings; when generating, keep it simple.
+- **Feel (added 2026-10-01):**
+  - **Hold Q** keeps the light combo going.
+  - **Armor pushback:** a melee hit that bounces off the boss's armor knocks the player back (`bounce_back()` in `player.gd`).
+  - **Knockback:** galloping into a wall puts the player in `KNOCKBACK` (added at the end of the `State` enum): squashed against the wall, thrown back in an arc, dazed with stars. PLACEHOLDER art made in code from BOOM's BRAKE, DOUBLE_JUMP and LAND frames (`_add_knockback_anim`, added at runtime; `player.tscn` is untouched). BOOM needs to draw a real KNOCKBACK.
+  - **Finisher mashing (the professor's ask):** the million-cut flurry only advances while Q/W is mashed (2 slashes per press). Stop and the player slowly falls; after 1.5 s it cancels and the boss is back to full health (`finisher_failed()`). The finisher's combo total is fixed: 26 slashes x 4 hits.
+  - **Juice spray (`code/design/juice_spray.gd`):** every hit that damages the boss sprays juice out the far side (jet, droplets that splat, chunks, mist). Finisher slashes spray any direction, and the boss explodes in 14 bursts when it falls apart (`explode_juice()`). PLACEHOLDER.
 
 ## Open issues (for BOOM or undecided)
 - **Animations cut off by the code's timers:**

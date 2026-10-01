@@ -29,6 +29,7 @@ const ANIM_NAMES := {
 	State.DASH_ATTACK_HEAVY_IMPACT: "DASH_ATTACK_HEAVY_IMPACT",
 	State.HEAVY_CHARGE: "ATTACK_HEAVY_WINDUP",        # held on its last frame while charging
 	State.CHARGED_SMASH: "ATTACK_HEAVY_SMASH",
+	State.KNOCKBACK: "KNOCKBACK",                    # PLACEHOLDER: built in _add_knockback_anim from BOOM's frames
 }
 
 # สเตทที่รียูสคลิป แล้วอยากให้เล่นเร็ว/ช้ากว่าปกติ (ไม่กระทบ const เดิม)
@@ -51,6 +52,7 @@ enum State {
 	DASH_ATTACK_HEAVY_WINDUP, DASH_ATTACK_HEAVY_SLAM, DASH_ATTACK_HEAVY_IMPACT,
 	GALLOP,                          # new states go at the end: enemies read states by position
 	HEAVY_CHARGE, CHARGED_SMASH,     # hold W: the heavy swing holds and charges; let go: massive hit
+	KNOCKBACK,                       # galloped into a wall: knocked back, then dazed for a moment
 }
 
 # the ground-move state for each speed level
@@ -115,6 +117,72 @@ const SHAKE_SMALL_TIME := 0.15
 const SHAKE_BIG_STRENGTH := 16.0
 const SHAKE_BIG_TIME := 0.40
 
+# attack sounds, played the moment a swing hits (in _set_state). Both files start quiet, so they play
+# from a little way in.
+const Q_SOUND := preload("res://sounds/Q_HIT_54427377-sword-slash-476148.mp3")
+const Q_SOUND_SKIP := 0.60          # the file has 0.6 s of silence first; starts right as the slash gets loud
+const W_SOUND := preload("res://sounds/W_HIT_daviddumaisaudio-sword-slash-and-swing-185432.mp3")
+const W_SOUND_SKIP := 0.19          # skip the swing's build-up, so it's already loud when the smash lands
+
+# a Q or W swing that reaches a wall clangs off it (the same clang as the boss's armor)
+const WALL_SOUND := preload("res://sounds/sword/sword_clash_06.wav")
+const WALL_SOUND_DB := -6.0         # the clang is much louder than the Q slash
+const WALL_SOUND_SKIP := 0.012      # the clang gets loud 13ms in; start right there
+const WALL_REACH := {               # how far ahead of the player's middle each swing reaches
+	State.ATTACK_LIGHT_1: 44.0,
+	State.ATTACK_LIGHT_2: 44.0,
+	State.DASH_ATTACK_LIGHT: 40.0,
+	State.ATTACK_HEAVY_SMASH: 56.0,
+	State.CHARGED_SMASH: 56.0,
+	State.DASH_ATTACK_HEAVY_IMPACT: 56.0,
+}
+
+# footsteps: a random grass step (made in code, sounds/footsteps/) each time a foot plants
+const FOOTSTEP_SOUNDS := [
+	preload("res://sounds/footsteps/footstep_grass_01.wav"),
+	preload("res://sounds/footsteps/footstep_grass_02.wav"),
+	preload("res://sounds/footsteps/footstep_grass_03.wav"),
+	preload("res://sounds/footsteps/footstep_grass_04.wav"),
+	preload("res://sounds/footsteps/footstep_grass_05.wav"),
+	preload("res://sounds/footsteps/footstep_grass_06.wav"),
+]
+const FOOTSTEP_DB := -12.0          # quieter than the attacks
+# in water (the living background's pits and shallows): a splash instead, cut from
+# sounds/WATER_FOOTSTEP_freesound_community-splash-6213.mp3 (its main splash, 0.20-0.44 s)
+const FOOTSTEP_WATER_SOUND := preload("res://sounds/footsteps/footstep_water.wav")
+const FOOTSTEP_WATER_DB := -10.0
+
+# hold W: a build-up made in code (sounds/charge_buildup.wav). It rises over CHARGE_TIME (1 s), "tings" at
+# full charge, then hums until CHARGE_MAX_HOLD (3 s). It stops the moment the charge ends.
+const CHARGE_SOUND := preload("res://sounds/charge_buildup.wav")
+const CHARGE_SOUND_DB := -8.0
+
+# galloping into a wall: an impact, the same one as the boss's, played lighter
+const WALL_IMPACT_SOUNDS := [preload("res://sounds/IMPACT_dragon-studio-hard-heavy-impact-515256.mp3")]
+const WALL_IMPACT_SKIP := 0.02       # the file starts with 20ms of silence
+const WALL_IMPACT_DB := -14.0
+const WALL_IMPACT_PITCH := 0.95     # a bit higher than the boss's (0.8): the player is smaller
+
+# galloping into a wall: squashed against it for a moment, knocked back in a little arc (leaning back),
+# then dazed on the ground with stars over the head before you can move again.
+# PLACEHOLDER animation, made in code from BOOM's existing frames until he draws a real KNOCKBACK.
+const KNOCKBACK_PUSH := Vector2(180, -200)    # back and up
+const KNOCKBACK_IMPACT_TIME := 0.08            # squashed flat against the wall, flashing white
+const KNOCKBACK_TILT := 0.6                    # radians: how far it leans back while flying
+const KNOCKBACK_DAZE := 0.3                    # dazed on the ground before control returns
+const KNOCKBACK_SHAKE := Vector2(8, 0.25)      # strength, seconds
+
+# jump and double jump: a crunchy step, sounds/JUMP_V2_freesound_community-snow-step-1-81064.mp3 trimmed and
+# brought up to full volume (sounds/jump/jump_snow.wav). A splash step instead in water. The double jump is
+# the same sound, a bit higher.
+const JUMP_SOUNDS := [preload("res://sounds/jump/jump_snow.wav")]
+const DOUBLE_JUMP_PITCH := 1.12     # about 2 semitones higher
+const JUMP_SOUND_DB := -9.0         # a touch louder than the footsteps (-12)
+
+const RECOIL_TIME := 0.15          # bounce_back: the knock lasts this long, slowing to a stop
+const FOOTSTEP_ANIMS := ["WALK", "RUN", "SPRINT", "GALLOP"]
+const FOOTSTEP_FRAMES := [0, 2]     # a foot plants on these frames in all four cycles (BOOM's sheet)
+
 # Thunderclap flash: while galloping, an enemy ahead sets it off automatically. Instantly cut
 # through every enemy in the lane, reappear past the last one and keep sprinting.
 # Enemies: group "enemies" + take_hit().
@@ -134,6 +202,7 @@ const CounterChain := preload("res://code/counter_chain.gd")
 const COUNTER_BLOCKED := [          # committed moves that can't be interrupted by a counter
 	State.ATTACK_HEAVY_WINDUP, State.ATTACK_HEAVY_SMASH,
 	State.DASH_ATTACK_HEAVY_WINDUP, State.DASH_ATTACK_HEAVY_SLAM, State.DASH_ATTACK_HEAVY_IMPACT,
+	State.KNOCKBACK,
 ]
 
 @onready var state_label = $Label
@@ -160,6 +229,22 @@ var shake_duration := 0.0
 var shake_time_left := 0.0
 
 var _sparks: CPUParticles2D
+var _q_sound: AudioStreamPlayer
+var _w_sound: AudioStreamPlayer
+var _wall_sound: AudioStreamPlayer
+var _wall_clanged := false         # this swing already clanged off a wall
+var _step_sound: AudioStreamPlayer
+var _water_step_sound: AudioStreamPlayer
+var _charge_sound: AudioStreamPlayer
+var _charge_fade: Tween
+var _wall_impact_sound: AudioStreamPlayer
+var _recoil_speed := 0.0
+var _recoil_left := 0.0
+var _knock_phase := 0               # 0 squashed against the wall, 1 flying back, 2 dazed on the ground
+var _knock_time := 0.0
+var _stars: Node2D
+var _jump_sound: AudioStreamPlayer
+var _double_jump_sound: AudioStreamPlayer
 
 const ComboHud := preload("res://code/combo_hud.gd")
 
@@ -169,8 +254,187 @@ func _ready():
 	_ensure_action("attack_light", KEY_Q)
 	_ensure_action("attack_heavy", KEY_W)
 	_sparks = _make_sparks()
+	_q_sound = _make_sound(Q_SOUND)
+	_w_sound = _make_sound(W_SOUND)
+	_wall_sound = _make_sound(WALL_SOUND)
+	_wall_sound.volume_db = WALL_SOUND_DB
+	var steps := AudioStreamRandomizer.new()     # a different step each time, never the same twice in a row
+	for s in FOOTSTEP_SOUNDS:
+		steps.add_stream(-1, s)
+	steps.random_pitch = 1.1                     # each step a little higher or lower
+	steps.random_volume_offset_db = 2.0
+	_step_sound = _make_sound(steps)
+	_step_sound.volume_db = FOOTSTEP_DB
+	var splash := AudioStreamRandomizer.new()    # one splash, varied in pitch so steps don't sound identical
+	splash.add_stream(-1, FOOTSTEP_WATER_SOUND)
+	splash.random_pitch = 1.15
+	splash.random_volume_offset_db = 2.0
+	_water_step_sound = _make_sound(splash)
+	_water_step_sound.volume_db = FOOTSTEP_WATER_DB
+	sprite.frame_changed.connect(_on_sprite_frame)
+	_charge_sound = _make_sound(CHARGE_SOUND)
+	_charge_sound.max_polyphony = 1
+	_add_knockback_anim()
+	_jump_sound = _make_jump_sound(JUMP_SOUNDS)
+	_double_jump_sound = _make_jump_sound(JUMP_SOUNDS)
+	_double_jump_sound.pitch_scale = DOUBLE_JUMP_PITCH
+	_stars = Node2D.new()
+	_stars.z_index = 1
+	_stars.visible = false
+	_stars.draw.connect(_draw_stars)
+	add_child(_stars)
+	var impacts := AudioStreamRandomizer.new()
+	for s in WALL_IMPACT_SOUNDS:
+		impacts.add_stream(-1, s)
+	impacts.random_pitch = 1.08
+	_wall_impact_sound = _make_sound(impacts)
+	_wall_impact_sound.volume_db = WALL_IMPACT_DB
+	_wall_impact_sound.pitch_scale = WALL_IMPACT_PITCH
 	add_child(ComboHud.new())
 	_set_state(State.IDLE)
+
+
+# a random one of the variations each jump, at a slightly different pitch, so it doesn't get samey
+func _make_jump_sound(streams: Array) -> AudioStreamPlayer:
+	var r := AudioStreamRandomizer.new()
+	for s in streams:
+		r.add_stream(-1, s)
+	r.random_pitch = 1.05
+	var p := _make_sound(r)
+	p.volume_db = JUMP_SOUND_DB
+	return p
+
+
+func _make_sound(stream: AudioStream) -> AudioStreamPlayer:
+	var p := AudioStreamPlayer.new()
+	p.stream = stream
+	p.max_polyphony = 3            # quick swings layer instead of cutting the last one off
+	add_child(p)
+	return p
+
+
+func _start_charge_sound():
+	if _charge_fade:
+		_charge_fade.kill()
+	_charge_sound.volume_db = CHARGE_SOUND_DB
+	_charge_sound.play()
+
+
+# a very quick fade instead of a hard stop, so it doesn't click (real time: hit-freezes don't slow it)
+func _stop_charge_sound():
+	if not _charge_sound.playing:
+		return
+	_charge_fade = create_tween().set_ignore_time_scale(true)
+	_charge_fade.tween_property(_charge_sound, "volume_db", -60.0, 0.06)
+	_charge_fade.tween_callback(_charge_sound.stop)
+
+
+# ---------- galloping into a wall: knockback ----------
+# PLACEHOLDER animation: three of BOOM's existing poses (brake = squashed against the wall, double jump =
+# flying back, land = dazed), copied from his animations so they follow his updates. His sheet is untouched.
+func _add_knockback_anim():
+	var frames := sprite.sprite_frames
+	if frames.has_animation("KNOCKBACK"):
+		return
+	frames.add_animation("KNOCKBACK")
+	frames.set_animation_loop("KNOCKBACK", false)
+	frames.add_frame("KNOCKBACK", frames.get_frame_texture("BRAKE", 1))
+	frames.add_frame("KNOCKBACK", frames.get_frame_texture("DOUBLE_JUMP", 0))
+	frames.add_frame("KNOCKBACK", frames.get_frame_texture("LAND", 0))
+
+
+func _start_knockback():
+	speed_level = 0
+	hold_time = 0.0
+	_set_state(State.KNOCKBACK)
+	_knock_phase = 0
+	_knock_time = 0.0
+	velocity = Vector2.ZERO
+	sprite.self_modulate = Color(2.5, 2.5, 2.5)     # white flash
+	sprite.scale = Vector2(0.75, 1.2)                # squashed against the wall
+	_stars.visible = true
+	_shake(KNOCKBACK_SHAKE.x, KNOCKBACK_SHAKE.y)
+
+
+func _state_knockback(delta):
+	_knock_time += delta
+	_stars.queue_redraw()
+	match _knock_phase:
+		0:   # squashed flat against the wall, flashing white
+			velocity = Vector2.ZERO
+			if _knock_time >= KNOCKBACK_IMPACT_TIME:
+				_knock_phase = 1
+				_knock_time = 0.0
+				velocity = Vector2(-facing * KNOCKBACK_PUSH.x, KNOCKBACK_PUSH.y)
+				sprite.frame = 1
+				sprite.scale = Vector2.ONE
+				sprite.self_modulate = Color.WHITE
+		1:   # flying back in an arc, leaning further back (head away from the wall)
+			sprite.rotation = -facing * KNOCKBACK_TILT * minf(_knock_time / 0.3, 1.0)
+			if is_on_floor() and _knock_time > 0.05:
+				_knock_phase = 2
+				_knock_time = 0.0
+				sprite.frame = 2
+				sprite.rotation = 0.0
+			elif _knock_time > 2.0:            # never landed (fell off something): just fall
+				_set_state(State.JUMP_FALL)
+		2:   # dazed on the ground for a moment
+			velocity.x = move_toward(velocity.x, 0.0, 1600.0 * delta)
+			if _knock_time >= KNOCKBACK_DAZE:
+				_set_state(State.IDLE)
+
+
+func _end_knockback_look():
+	sprite.rotation = 0.0
+	sprite.scale = Vector2.ONE
+	sprite.self_modulate = Color.WHITE
+	_stars.visible = false
+
+
+# PLACEHOLDER dizzy stars: three little stars circling over the head while knocked back
+func _draw_stars():
+	for i in 3:
+		var a := state_time * 7.0 + i * TAU / 3.0
+		var p := Vector2(cos(a) * 10.0, -46.0 + sin(a) * 3.0).round()
+		_stars.draw_rect(Rect2(p + Vector2(-1, 0), Vector2(3, 1)), Color("ccad4b"))
+		_stars.draw_rect(Rect2(p + Vector2(0, -1), Vector2(1, 3)), Color("ccad4b"))
+		_stars.draw_rect(Rect2(p, Vector2(1, 1)), Color("ecdfdb"))
+
+
+# feet in the living background's water (pits and shallows)
+func _in_water() -> bool:
+	var bg := get_tree().get_first_node_in_group("living_background")
+	return bg != null and bg.in_water(global_position)
+
+
+# a swing bounced off something armored (the boss's spiky skin): knocked back a little, away from from_x
+func bounce_back(from_x: float, speed: float):
+	var dir := signf(global_position.x - from_x)
+	if dir == 0.0:
+		dir = -float(facing)
+	if state == State.DASH_ATTACK_LIGHT:   # the running Q stops instead of carrying on through it
+		speed_level = 0
+		_set_state(State.IDLE)
+	_recoil_speed = dir * speed
+	_recoil_left = RECOIL_TIME
+
+
+# a foot plants in the walk / run / sprint / gallop cycle: footstep (a splash in water)
+func _on_sprite_frame():
+	if not (String(sprite.animation) in FOOTSTEP_ANIMS and sprite.frame in FOOTSTEP_FRAMES and is_on_floor()):
+		return
+	if _in_water():
+		_water_step_sound.play()
+	else:
+		_step_sound.play()
+
+
+# the Q or W sound. Code that swings the player's sword from outside (the boss air combo) calls this too.
+func play_swing_sound(heavy: bool):
+	if heavy:
+		_w_sound.play(W_SOUND_SKIP)
+	else:
+		_q_sound.play(Q_SOUND_SKIP)
 
 
 func _ensure_action(action: String, key: Key):
@@ -203,8 +467,13 @@ func _process(delta):
 
 
 func _set_state(new_state: State):
+	if state == State.HEAVY_CHARGE and new_state != State.HEAVY_CHARGE:
+		_stop_charge_sound()
+	if state == State.KNOCKBACK and new_state != State.KNOCKBACK:
+		_end_knockback_look()
 	state = new_state
 	state_time = 0.0
+	_wall_clanged = false
 	_update_label()
 	_play_anim(new_state)          # <-- เพิ่มบรรทัดนี้
 
@@ -213,10 +482,20 @@ func _set_state(new_state: State):
 			# hold the swing: freeze on the windup's last frame while charging
 			sprite.frame = sprite.sprite_frames.get_frame_count(sprite.animation) - 1
 			sprite.pause()
+			_start_charge_sound()
+		State.ATTACK_LIGHT_1, State.ATTACK_LIGHT_2, State.DASH_ATTACK_LIGHT:
+			play_swing_sound(false)
 		State.ATTACK_HEAVY_SMASH:
 			_shake(SHAKE_SMALL_STRENGTH, SHAKE_SMALL_TIME)
+			play_swing_sound(true)
 		State.DASH_ATTACK_HEAVY_IMPACT:
 			_shake(SHAKE_BIG_STRENGTH, SHAKE_BIG_TIME)
+			play_swing_sound(true)
+		State.CHARGED_SMASH:
+			play_swing_sound(true)
+		State.KNOCKBACK:
+			sprite.pause()                  # its three poses are picked by hand in _state_knockback
+			sprite.frame = 0
 
 
 func _play_anim(s: State):
@@ -291,9 +570,42 @@ func _physics_process(delta):
 			_state_dash_heavy_slam(delta)
 		State.DASH_ATTACK_HEAVY_IMPACT:
 			_state_dash_heavy_impact(delta)
+		State.KNOCKBACK:
+			_state_knockback(delta)
 
+	if _recoil_left > 0.0:             # bounced off armor: this wins over whatever the state wants
+		_recoil_left -= delta
+		velocity.x = _recoil_speed * maxf(_recoil_left, 0.0) / RECOIL_TIME
+	var speed_into := velocity.x * facing
 	move_and_slide()
+	# galloping into a wall: impact and knockback (once: the wall stops you, so the next frame isn't fast)
+	if state in [State.GALLOP, State.JUMP_RISE, State.JUMP_FALL, State.DOUBLE_JUMP] \
+			and speed_level == SPEEDS.size() - 1 and speed_into >= SPEEDS[SPEEDS.size() - 1] * 0.8 \
+			and is_on_wall() and get_wall_normal().x * facing < 0.0:
+		_wall_impact_sound.play(WALL_IMPACT_SKIP)
+		_start_knockback()
 	sprite.flip_h = facing < 0
+	_check_wall_clang()
+
+
+# ---------- swings clang off walls ----------
+func _check_wall_clang():
+	if _wall_clanged or not WALL_REACH.has(state):
+		return
+	var reach: float = WALL_REACH[state]
+	var box := RectangleShape2D.new()
+	box.size = Vector2(reach, 30.0)                 # body height, clear of the floor and low ceilings
+	var q := PhysicsShapeQueryParameters2D.new()
+	q.shape = box
+	q.transform = Transform2D(0.0, global_position + Vector2(facing * reach / 2.0, -21.0))
+	q.collision_mask = collision_mask
+	q.exclude = [get_rid()]
+	for hit in get_world_2d().direct_space_state.intersect_shape(q, 8):
+		var body = hit["collider"]
+		if body is StaticBody2D and body.get_script() == null:   # plain level blocks, not the breakable gate
+			_wall_clanged = true
+			_wall_sound.play(WALL_SOUND_SKIP)
+			return
 
 
 # ---------- ดับเบิลแท็ป ----------
@@ -315,6 +627,10 @@ func _track_double_tap():
 func _try_jump() -> bool:
 	if jump_buffer_timer > 0.0 and coyote_timer > 0.0:
 		velocity.y = JUMP_VELOCITY
+		if _in_water():
+			_water_step_sound.play()
+		else:
+			_jump_sound.play()
 		jump_buffer_timer = 0.0
 		coyote_timer = 0.0
 		jump_cut_done = false
@@ -461,6 +777,7 @@ func _state_air(delta, dir):
 		if air_jumps_left > 0:
 			air_jumps_left -= 1
 			velocity.y = DOUBLE_JUMP_VELOCITY
+			_double_jump_sound.play()
 			jump_buffer_timer = 0.0
 			jump_cut_done = false
 			_set_state(State.DOUBLE_JUMP)
@@ -514,7 +831,7 @@ func _state_attack_light(delta):
 		return
 	if is_on_floor():
 		velocity.x = move_toward(velocity.x, 0.0, 600.0 * delta)   # in the air you keep drifting
-	if Input.is_action_just_pressed("attack_light"):
+	if Input.is_action_pressed("attack_light"):     # holding Q keeps the combo going
 		combo_queued = true
 
 	var duration: float = LIGHT_DURATIONS[state]
@@ -680,6 +997,7 @@ func _try_counter() -> bool:
 	velocity = Vector2.ZERO
 	speed_level = 0
 	hold_time = 0.0
+	_stop_charge_sound()                # the counter can cut a W charge short
 	var chain := CounterChain.new()     # takes over from here: freezes time and runs the cuts
 	chain.player = self
 	chain.first = target

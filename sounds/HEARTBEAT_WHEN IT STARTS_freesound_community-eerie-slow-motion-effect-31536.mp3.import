@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://cicr4y56rt3me"
+path="res://.godot/imported/HEARTBEAT_WHEN IT STARTS_freesound_community-eerie-slow-motion-effect-31536.mp3-2684422c6926dc48e62cd31f09a4290d.mp3str"
+
+[deps]
+
+source_file="res://sounds/HEARTBEAT_WHEN IT STARTS_freesound_community-eerie-slow-motion-effect-31536.mp3"
+dest_files=["res://.godot/imported/HEARTBEAT_WHEN IT STARTS_freesound_community-eerie-slow-motion-effect-31536.mp3-2684422c6926dc48e62cd31f09a4290d.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

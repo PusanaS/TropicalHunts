@@ -103,8 +103,28 @@ const EnemyKit := preload("res://code/design/enemy_kit.gd")
 const BossFinisher := preload("res://code/design/boss_finisher.gd")
 const BossAirCombo := preload("res://code/design/boss_air_combo.gd")
 const BossWave := preload("res://code/design/boss_wave.gd")
+const JuiceSpray := preload("res://code/design/juice_spray.gd")
+const EXPLODE_SPRAYS := 14               # the finisher's end: this many juice bursts, all the way around...
+const EXPLODE_POWER := 1.8               # ...each nearly twice a Q's spray, and faster
 const JuiceDrop := preload("res://code/design/juice_drop.gd")
 const MinionScene := preload("res://scene/design/fruit_minion.tscn")
+const ARMOR_SOUND := preload("res://sounds/sword/sword_clash_06.wav")   # a hit bouncing off the armor
+const ARMOR_SOUND_DB := -6.0          # the clang is much louder than the Q slash
+const ARMOR_SOUND_SKIP := 0.012       # the clang gets loud 13ms in; start right there
+# heavy impacts: the roll hitting a wall, landing from the stomp jump
+const IMPACT_SOUNDS := [preload("res://sounds/IMPACT_dragon-studio-hard-heavy-impact-515256.mp3")]
+const IMPACT_SKIP := 0.02             # the file starts with 20ms of silence
+const IMPACT_SOUND_DB := -12.0
+const IMPACT_PITCH := 0.8             # deeper and heavier (lower = deeper, and a little longer)
+# every hit that does damage: a wet squelch (Q, W, the flash, W waves...)
+const DAMAGE_SOUND := preload("res://sounds/FLESH_SOUNDS_universfield-wet-squelch-impact-352302.mp3")
+const DAMAGE_SOUND_DB := 0.0
+const DAMAGE_SOUND_SKIP := 0.12      # the file starts with 0.12 s of silence
+const ARMOR_PUSHBACK := 220.0         # a melee hit bouncing off knocks the player back this fast (about 16 px)
+# rumbles while it rolls. A 12 s copy of sounds/PINAPPLE_ROLL_...-6953.mp3 with grit added: the original is
+# almost all deep bass, which laptop speakers can't play, so it sounded faint.
+const ROLL_SOUND := preload("res://sounds/PINAPPLE_ROLL_freesound_community-earth-rumble-6953_boosted.wav")
+const ROLL_SOUND_DB := -3.0
 
 @onready var sprite: AnimatedSprite2D = $Sprite
 @onready var body_shape: CollisionShape2D = $CollisionShape2D
@@ -125,6 +145,11 @@ var _last_attack: State = State.IDLE
 var _minions: Array = []
 var _flash_left := 0.0
 var _juggle_hits := 0
+var _armor_sound := AudioStreamPlayer.new()
+var _roll_sound := AudioStreamPlayer.new()
+var _roll_fade: Tween
+var _impact_sound := AudioStreamPlayer.new()
+var _damage_sound := AudioStreamPlayer.new()
 
 
 func _ready():
@@ -132,6 +157,29 @@ func _ready():
 	sprite.animation_finished.connect(_on_anim_finished)
 	home = global_position
 	hp = max_hp
+	_armor_sound.stream = ARMOR_SOUND
+	_armor_sound.volume_db = ARMOR_SOUND_DB
+	_armor_sound.max_polyphony = 3      # quick hits layer their ring instead of cutting it off
+	add_child(_armor_sound)
+	_roll_sound.stream = ROLL_SOUND
+	add_child(_roll_sound)
+	var impacts := AudioStreamRandomizer.new()    # one of the three, a little higher or lower each time
+	for s in IMPACT_SOUNDS:
+		impacts.add_stream(-1, s)
+	impacts.random_pitch = 1.08
+	_impact_sound.stream = impacts
+	_impact_sound.volume_db = IMPACT_SOUND_DB
+	_impact_sound.pitch_scale = IMPACT_PITCH
+	_impact_sound.max_polyphony = 2
+	add_child(_impact_sound)
+	var squelch := AudioStreamRandomizer.new()   # a different pitch each hit, so combos don't sound repetitive
+	squelch.add_stream(-1, DAMAGE_SOUND)
+	squelch.random_pitch = 1.3                    # anywhere from about 4 semitones lower to 4 higher
+	squelch.random_volume_offset_db = 2.0
+	_damage_sound.stream = squelch
+	_damage_sound.volume_db = DAMAGE_SOUND_DB
+	_damage_sound.max_polyphony = 3
+	add_child(_damage_sound)
 	_set_state(State.IDLE)
 
 
@@ -158,6 +206,8 @@ func _stage_for(h: int) -> int:
 
 
 func _set_state(s: State):
+	if state == State.ROLL and s != State.ROLL:
+		_stop_roll_sound()
 	state = s
 	state_time = 0.0
 	_play_anim()
@@ -168,6 +218,26 @@ func _set_state(s: State):
 			velocity = Vector2(facing * stomp_jump.x, stomp_jump.y)
 		State.LAND:
 			_stomp_land()
+		State.ROLL:
+			_start_roll_sound()
+
+
+# a different stretch of the rumble each roll, faded in and out so it doesn't click
+func _start_roll_sound():
+	if _roll_fade:
+		_roll_fade.kill()
+	_roll_sound.volume_db = -40.0
+	_roll_sound.play(randf_range(0.0, 6.5))      # a roll lasts 5 s at most
+	_roll_fade = create_tween().set_ignore_time_scale(true)
+	_roll_fade.tween_property(_roll_sound, "volume_db", ROLL_SOUND_DB, 0.1)
+
+
+func _stop_roll_sound():
+	if _roll_fade:
+		_roll_fade.kill()
+	_roll_fade = create_tween().set_ignore_time_scale(true)
+	_roll_fade.tween_property(_roll_sound, "volume_db", -40.0, 0.25)
+	_roll_fade.tween_callback(_roll_sound.stop)
 
 
 func _play_anim():
@@ -399,6 +469,7 @@ func start_finisher():
 # ---------- attacks ----------
 func _stomp_land():
 	_shake(SHAKE_LAND)
+	_impact_sound.play(IMPACT_SKIP)
 	for dir in [-1, 1]:
 		var w: Node2D = BossWave.new()
 		w.direction = dir
@@ -410,6 +481,7 @@ func _stomp_land():
 func _bonk():
 	velocity = Vector2(-facing * BONK_PUSH.x, BONK_PUSH.y)
 	_shake(SHAKE_BONK)
+	_impact_sound.play(IMPACT_SKIP)
 	_set_state(State.DIZZY)
 
 
@@ -462,17 +534,26 @@ func _check_player_attack():
 	if hit.is_empty():
 		return
 	_hit_this_swing = true
+	if _armor_blocks(hit["damage"]) and player.has_method("bounce_back"):
+		player.bounce_back(global_position.x, ARMOR_PUSHBACK)    # bounced off the spiky skin: knocked back a little
 	take_hit(hit["damage"], hit["push"])
+
+
+# armor is off while it's dizzy or up in the air (and in the states where hits don't count anyway)
+func _armor_blocks(damage: int) -> bool:
+	return armored and damage < 3 and state not in [State.DIZZY, State.JUGGLED, State.COMBO, State.BROKEN, State.FINISHED, State.DEAD]
 
 
 func take_hit(damage: int, push: Vector2):
 	if state in [State.COMBO, State.BROKEN, State.FINISHED, State.DEAD]:
 		return
-	# armor is off while it's dizzy or up in the air
-	if armored and damage < 3 and state not in [State.DIZZY, State.JUGGLED]:
+	if _armor_blocks(damage):
 		_spawn_sparks()           # bounced off the spiky skin
+		_armor_sound.play(ARMOR_SOUND_SKIP)
 		return
 	hp -= damage
+	_damage_sound.play(DAMAGE_SOUND_SKIP)
+	spray_juice(_attacker_x(), 1.0 + (damage - 1) * 0.4)    # a Q sprays, a W (3 damage) sprays nearly twice as much
 	sprite.self_modulate = Color(4, 4, 4)    # white flash
 	_flash_left = FLASH_TIME
 	EnemyKit.hitstop(get_tree(), HITSTOP)
@@ -521,6 +602,8 @@ func _start_air_combo():
 # a hit from the air combo: damage and flash, no knockback. True if that emptied its health.
 func combo_hit(damage: int) -> bool:
 	hp -= damage
+	_damage_sound.play(DAMAGE_SOUND_SKIP)
+	spray_juice(_attacker_x(), 1.0 + (damage - 1) * 0.4)
 	_juggle_hits += 1
 	sprite.self_modulate = Color(4, 4, 4)
 	_flash_left = FLASH_TIME
@@ -560,6 +643,55 @@ func _die():
 	_spawn_remains()
 
 
+# juice bursting out the far side of a cut, away from from_x (whoever cut it), leaning up.
+# anywhere = true (the finisher's cuts): it bursts out of a random point all around the body, any direction.
+func spray_juice(from_x: float, power: float, anywhere := false):
+	var aim: Vector2
+	var exit: Vector2                # where it comes out, from the boss's feet
+	if anywhere:
+		aim = Vector2.from_angle(randf() * TAU)
+		exit = Vector2(0, -40) + aim * Vector2(HURTBOX.size.x / 2.0, HURTBOX.size.y / 2.0)
+	else:
+		var side := signf(global_position.x - from_x)
+		if side == 0.0:
+			side = float(-facing)
+		aim = Vector2(side, -0.35).normalized()
+		exit = Vector2(side * HURTBOX.size.x / 2.0, -40.0 + randf_range(-14.0, 14.0))
+	_spray(aim, exit, power)
+
+
+# the finisher's end: it bursts apart, juice exploding out from its middle in every direction
+func explode_juice():
+	for i in EXPLODE_SPRAYS:
+		var aim := Vector2.from_angle(TAU * i / EXPLODE_SPRAYS + randf_range(-0.2, 0.2))
+		_spray(aim, Vector2(0, -40) + aim * Vector2(15, 20), EXPLODE_POWER)
+
+
+func _spray(aim: Vector2, exit: Vector2, power: float):
+	var s: Node2D = JuiceSpray.new()
+	s.color = juice_color
+	s.aim = aim
+	s.power = power
+	s.floor_y = _ground_y()
+	s.position = get_parent().to_local(global_position + exit)
+	get_parent().add_child(s)
+
+
+func _attacker_x() -> float:
+	return player.global_position.x if player else global_position.x - facing * 10.0
+
+
+# called by boss_finisher.gd when the player stops mashing too long: it shrugs it off, full health again
+func finisher_failed():
+	hp = max_hp
+	_stage = 0                  # full crown again
+	_juggle_hits = 0
+	_flash_left = 0.0
+	sprite.self_modulate = Color.WHITE
+	velocity = Vector2.ZERO
+	_set_state(State.IDLE)      # if it was up in the air, it just drops
+
+
 # called by boss_finisher.gd once it has fallen apart: no DIE animation, the pieces are the show
 func finisher_death():
 	state = State.DEAD
@@ -567,6 +699,7 @@ func finisher_death():
 	velocity = Vector2.ZERO
 	sprite.visible = false
 	body_shape.set_deferred("disabled", true)
+	explode_juice()
 	_spawn_remains()
 
 

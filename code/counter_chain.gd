@@ -18,6 +18,9 @@ const DIM := Color(0.208, 0.153, 0.357, 0.45)     # BOOM's indigo over the froze
 const SLASH := Color(0.925, 0.875, 0.859)         # off-white
 const SLASH_EDGE := Color(0.8, 0.678, 0.294)      # mustard
 const GHOST := Color(0.447, 0.722, 0.808, 0.8)    # teal afterimage
+const CUT_SOUND := preload("res://sounds/sword/sword_clash_02.wav")   # a clang on every cut
+const CUT_SOUND_DB := -3.0
+const CUT_SOUND_SKIP := 0.06    # skip the quiet lead-in, so the clang lands on the cut
 
 var player: CharacterBody2D
 var first: Node2D
@@ -119,8 +122,19 @@ func _cut(e: Node2D):
 	_slashes.append([mid - tilt, mid + tilt, _now()])
 	if e.has_method("cut_in_half"):
 		e.cut_in_half(int(dir))
+	_clang()
 	_cuts += 1
 	get_tree().call_group("combo_hud", "counter_cut", _cuts)
+
+
+# each clang gets its own player in the level, so its ring isn't cut off when the counter ends
+func _clang():
+	var s := AudioStreamPlayer.new()
+	s.stream = CUT_SOUND
+	s.volume_db = CUT_SOUND_DB
+	get_parent().add_child(s)
+	s.finished.connect(s.queue_free)
+	s.play(CUT_SOUND_SKIP)
 
 
 # the nearest enemy that can be cut, was on screen when the counter started, and isn't cut yet

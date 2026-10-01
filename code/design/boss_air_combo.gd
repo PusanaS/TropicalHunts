@@ -142,6 +142,8 @@ func _strike(kind: Dictionary):
 		var d := Vector2.from_angle(randf() * PI)
 		_streak(center - d * 36.0, center + d * 36.0, 2.0, 0.1)
 	_shake(kind["shake"], 0.1)
+	if player.has_method("play_swing_sound"):
+		player.play_swing_sound(kind["damage"] >= 3)    # the same Q / W sounds as on the ground
 	var emptied: bool = boss.combo_hit(kind["damage"])
 	if emptied:
 		# the finisher takes the player over from here (or, with the finisher off, it just dies)

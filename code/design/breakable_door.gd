@@ -14,6 +14,8 @@ enum Mode { DOWN, OPEN, DROPPING }
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
 const TEXTURE: Texture2D = preload("res://scene/design/art/portcullis.png")  # 48x120, ground at y 112
 const PUFF: Texture2D = preload("res://scene/design/art/dust_puff.png")      # 6 frames, 16x16
+# sped up 2.24x (same pitch) so it lasts 1.2 s, as long as the gallop slow motion (SLOWMO)
+const CRASH_SOUND := preload("res://sounds/MATRIX_freesound_community-the-matrix-trinity-jump-sound-fx-plain-single-77358_fast.wav")
 
 const SIZE := Vector2(48, 112)                  # the doorway it blocks
 const SPRITE_Y := -52.0                         # sprite centre when down (120 tall, 8 of it underground)
@@ -42,6 +44,7 @@ var _drop_speed := 0.0
 var _shape: CollisionShape2D
 var _sprite: Sprite2D
 var _pieces: Array = []                         # each: [Sprite2D, velocity, spin, age]
+var _crash_sound := AudioStreamPlayer.new()
 
 
 func _ready():
@@ -58,6 +61,8 @@ func _ready():
 	_sprite.position = Vector2(0, SPRITE_Y)
 	_sprite.z_index = -1                        # behind the wall and the floor
 	add_child(_sprite)
+	_crash_sound.stream = CRASH_SOUND
+	add_child(_crash_sound)
 
 
 func _physics_process(delta: float):
@@ -145,6 +150,7 @@ func _shatter(dir: float, big: bool):
 		for by: int in BARS:
 			_piece(Rect2(left.x + left.y, by, right.x - left.x - left.y, 5), top_left, dir, power)
 	_impact_flash()
+	_crash_sound.play()
 	_splinters(dir, power)
 	for i in 8:
 		var side := dir if i < 5 else -dir

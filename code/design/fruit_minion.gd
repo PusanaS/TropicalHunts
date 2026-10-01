@@ -79,6 +79,16 @@ const ANIM_NAMES := {
 	State.DEAD: "DIE",
 }
 const JuiceDrop := preload("res://code/design/juice_drop.gd")
+# killed by one of the player's Q or W swings (not the flash or the counter): a flesh hit
+const KILL_SOUND := preload("res://sounds/sword/sword_hit_flesh_01.wav")
+const KILL_SOUND_DB := -3.0
+const KILL_SOUND_SKIP := 0.025        # the file swells in over 40ms; start partway in
+# every hit that does damage: a wet squelch (Q, W, the flash, W waves...)
+const DAMAGE_SOUND := preload("res://sounds/FLESH_SOUNDS_universfield-wet-squelch-impact-352302.mp3")
+const DAMAGE_SOUND_DB := 0.0
+const DAMAGE_SOUND_SKIP := 0.12      # the file starts with 0.12 s of silence
+const KILLING_SWINGS := ["ATTACK_LIGHT_1", "ATTACK_LIGHT_2", "DASH_ATTACK_LIGHT", "ATTACK_HEAVY_SMASH",
+	"DASH_ATTACK_HEAVY_SLAM", "DASH_ATTACK_HEAVY_IMPACT", "CHARGED_SMASH"]
 
 static var _player_safe_until := 0.0  # shared, so two minions can't hit the player at once
 
@@ -96,6 +106,8 @@ var _player_states: Array = []
 var _last_player_state := -1
 var _last_player_time := 0.0
 var _hit_this_swing := false
+var _kill_sound := AudioStreamPlayer.new()
+var _damage_sound := AudioStreamPlayer.new()
 
 
 func _ready():
@@ -105,6 +117,17 @@ func _ready():
 	sprite.animation_finished.connect(_on_anim_finished)
 	home = global_position
 	hp = max_hp
+	_kill_sound.stream = KILL_SOUND
+	_kill_sound.volume_db = KILL_SOUND_DB
+	add_child(_kill_sound)
+	var squelch := AudioStreamRandomizer.new()   # a different pitch each hit, so combos don't sound repetitive
+	squelch.add_stream(-1, DAMAGE_SOUND)
+	squelch.random_pitch = 1.3                    # anywhere from about 4 semitones lower to 4 higher
+	squelch.random_volume_offset_db = 2.0
+	_damage_sound.stream = squelch
+	_damage_sound.volume_db = DAMAGE_SOUND_DB
+	_damage_sound.max_polyphony = 3
+	add_child(_damage_sound)
 	_set_state(State.PATROL)
 
 
@@ -335,8 +358,11 @@ func take_hit(damage: int, push: Vector2):
 	if state == State.DEAD:
 		return
 	hp -= damage
+	_damage_sound.play(DAMAGE_SOUND_SKIP)
 	_hitstop(HITSTOP_HEAVY if damage >= 3 else HITSTOP_LIGHT)
 	if hp <= 0:
+		if player and _player_states[player.state] in KILLING_SWINGS:
+			_kill_sound.play(KILL_SOUND_SKIP)
 		_die()
 		return
 	velocity = push

@@ -1,7 +1,9 @@
 extends Node2D
 # The anime finisher. The boss spawns this when it is BROKEN and the player jumps up in front of it:
 #   1. lock-on:  the world goes dark, the player hangs in the air in front of it, charging
-#   2. flurry:   a hundred slashes (cut lines across the boss, afterimages, hit flashes), faster and faster
+#   2. flurry:   a hundred slashes (cut lines across the boss, afterimages, hit flashes), faster and faster.
+#                It only goes while the player mashes Q / W: each press releases the next slashes. If they
+#                stop, the player slowly falls; falling for FAIL_TIME cancels it and the boss is back at full health.
 #   3. final cut: the player dashes through and lands behind it, back turned
 #   4. silence:  a beat where nothing happens
 #   5. split:    the boss falls apart along the cut lines, then bursts into juice
@@ -16,7 +18,12 @@ const BODY_CENTER := Vector2(0, -40)
 const LOCK_ON_TIME := 0.35
 const SLASHES := 26
 const HITS_PER_SLASH := 4                 # added to the combo counter per slash (26 x 4 = "a hundred slashes")
-const SLASH_GAP := Vector2(0.09, 0.03)    # time between slashes: first, last
+const SLASH_GAP := Vector2(0.09, 0.03)    # time between slashes: first, last (the fastest mashing can go)
+const SLASHES_PER_PRESS := 2              # each Q or W press releases this many slashes
+const MAX_QUEUED := 4                     # presses can bank this many slashes, so stopping stops it quickly
+const SLOW_FALL := 60.0                   # not mashing: the player sinks, speeding up by this much per second
+const FALL_POSE_AFTER := 0.15             # stopped this long: switch to the falling pose
+const FAIL_TIME := 1.5                    # falling this long cancels the finisher: the boss is back at full health
 const DASH_TIME := 0.1
 const BREAK_HEIGHT := 80.0                # highest it can be (feet above the floor) and still be on screen
 const BOSS_DROP_TIME := 0.2               # how long the last cut takes to knock it down to that height
@@ -28,6 +35,12 @@ const OVERLAY_ALPHA := 0.75
 const SLASH_COLOR := Color(1.0, 0.97, 0.88)
 const Z := 50                             # the finisher draws over everything else
 const PIECE_GRAVITY := 700.0
+const FINAL_SOUND := preload("res://sounds/sword/sword_crash_01.wav")   # the boss falling apart at the end
+const FINAL_SOUND_DB := 0.0
+const FINAL_SOUND_SKIP := 0.03            # the crash swells in over 35ms; start partway in
+const SLASH_SOUND := preload("res://sounds/sword/sword_hit_flesh_06.wav")   # every slash in the flurry
+const SLASH_SOUND_DB := -6.0              # quieter, since they pile up on top of each other
+const SLASH_SOUND_SKIP := 0.015           # the file starts quiet; start right as it hits
 
 var boss: CharacterBody2D
 var player: CharacterBody2D
@@ -38,10 +51,38 @@ var _lines: Array = []       # [point, direction] of each cut, relative to the b
 var _pieces: Array = []      # [Polygon2D, velocity, spin]
 var _piece_time := -1.0
 var _z_before := {}
+var _mashing := false        # Q / W presses count (lock-on and flurry)
+var _queued := 0             # slashes the presses have released but not swung yet
+var _slash_sound := AudioStreamPlayer.new()
 
 
 func _ready():
+	_slash_sound.stream = SLASH_SOUND
+	_slash_sound.volume_db = SLASH_SOUND_DB
+	_slash_sound.max_polyphony = 4
+	add_child(_slash_sound)
 	_run()
+
+
+func _now() -> float:
+	return Time.get_ticks_msec() / 1000.0
+
+
+# the player stopped mashing for too long: the finisher fails, the player drops, the boss shrugs it off
+func _cancel():
+	_mashing = false
+	create_tween().tween_property(_overlay, "color:a", 0.0, 0.2)
+	_lower()
+	_psprite.speed_scale = 1.0
+	_psprite.self_modulate = Color.WHITE
+	player.velocity = Vector2.ZERO
+	player.set_physics_process(true)
+	if player.has_method("_set_state"):
+		player._set_state(player.get_script().State.JUMP_FALL)
+	EnemyKit.protect_player(0.6)
+	boss.finisher_failed()
+	await _wait(0.3)
+	queue_free()
 
 
 func _wait(seconds: float) -> Signal:
@@ -72,13 +113,47 @@ func _run():
 	_psprite.play("ATTACK_HEAVY_WINDUP")
 	_psprite.self_modulate = Color(1.8, 1.7, 0.6)
 	_shake(4.0, 0.2)
+	_mashing = true              # presses during the lock-on count too
 	await _wait(LOCK_ON_TIME)
 	_psprite.self_modulate = Color.WHITE
 
-	# 2. the flurry
-	for i in SLASHES:
+	# 2. the flurry: only while the player mashes Q / W. Stop, and the player slowly falls;
+	# falling for longer than FAIL_TIME cancels the finisher and the boss is back at full health.
+	var hover := player.global_position
+	var i := 0
+	var fall_start := -1.0
+	var fall_speed := 0.0
+	var last := 0.0
+	while i < SLASHES:
+		if _queued <= 0:
+			var now := _now()
+			if fall_start < 0.0:
+				fall_start = now
+				last = now
+				fall_speed = 0.0
+				_psprite.pause()                # hold the slash pose for a moment...
+			if now - fall_start >= FAIL_TIME:
+				_cancel()
+				return
+			if now - fall_start >= FALL_POSE_AFTER:
+				_psprite.speed_scale = 1.0
+				_psprite.play("JUMP_FALL")      # ...then it's clear they've stopped: falling pose
+			var dt := now - last
+			last = now
+			fall_speed += SLOW_FALL * dt
+			player.global_position.y = minf(player.global_position.y + fall_speed * dt, _ground_below(player.global_position.x))
+			EnemyKit.protect_player(0.3)
+			await get_tree().process_frame
+			continue
+		if fall_start >= 0.0:                   # mashing again: back up to the slashing spot
+			fall_start = -1.0
+			create_tween().tween_property(player, "global_position", hover, 0.08)
+		_queued -= 1
 		_slash(i)
+		i += 1
 		await _wait(lerpf(SLASH_GAP.x, SLASH_GAP.y, float(i) / SLASHES))
+	_mashing = false
+	EnemyKit.protect_player(DASH_TIME + SILENCE + 1.5)
 
 	# 3. final cut: dash through and land behind it, back turned
 	get_tree().call_group("combo_hud", "finish")   # the combo counter stops here with the full total
@@ -112,6 +187,11 @@ func _run():
 
 	# 5. it falls apart
 	_split()
+	var crash := AudioStreamPlayer.new()
+	crash.stream = FINAL_SOUND
+	crash.volume_db = FINAL_SOUND_DB
+	add_child(crash)
+	crash.play(FINAL_SOUND_SKIP)
 	boss.finisher_death()
 	_shake(16.0, 0.45)
 	create_tween().tween_property(_overlay, "color:a", 0.0, 0.3)
@@ -139,6 +219,8 @@ func _slash(i: int):
 	if i % 2 == 0:
 		_flash_boss()
 	_shake(3.0, 0.06)
+	_slash_sound.play(SLASH_SOUND_SKIP)
+	boss.spray_juice(player.global_position.x, 0.6, true)     # every cut bursts out somewhere, any direction
 	get_tree().call_group("combo_hud", "add_hits", HITS_PER_SLASH)
 
 
@@ -282,6 +364,8 @@ func _split():
 
 
 func _process(delta):
+	if _mashing and (Input.is_action_just_pressed("attack_light") or Input.is_action_just_pressed("attack_heavy")):
+		_queued = mini(_queued + SLASHES_PER_PRESS, MAX_QUEUED)
 	if _piece_time < 0.0:
 		return
 	_piece_time += delta
