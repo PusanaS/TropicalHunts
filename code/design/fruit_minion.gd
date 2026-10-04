@@ -27,6 +27,8 @@ enum State { IDLE, PATROL, NOTICE, CHASE, WINDUP, LUNGE, DIZZY, HURT, DEAD }
 @export var chase_speed := 80.0
 @export var patrol_range := 96.0     # how far it wanders from where it was placed
 @export var sight_range := 160.0
+@export var sight_height := SIGHT_HEIGHT # how far above or below it it notices you
+@export var sight_all_round := false # notices you whichever way it's facing (level 1's first column Mango)
 @export var lunge_range := 140.0     # starts the windup when the player is this close (was 72: Morgan wanted
                                      # it to pounce from further away, for a bigger counter window)
 @export var windup_time := 0.45      # the warning shake before the lunge
@@ -65,6 +67,9 @@ const TOUCH_BOX := Rect2(-10, -20, 20, 18)     # where it hurts the player
 const PLAYER_BOX := Rect2(-13, -38, 26, 36)    # the player's body, from their feet
 const PLAYER_PUSH := Vector2(220, -160)
 const PLAYER_SAFE_TIME := 0.8        # the player can't be hurt again for this long
+const HURT_SOUND := preload("res://sounds/HURT_homemade_sfx-slap-hurt-pain-sound-effect-262618.mp3")   # the player getting hit
+const HURT_SOUND_DB := 0.0
+const HURT_SOUND_SKIP := 0.26        # the file starts with 0.26 s of silence
 const HITSTOP_LIGHT := 0.04
 const HITSTOP_HEAVY := 0.08
 
@@ -101,6 +106,8 @@ var state: State = State.PATROL
 var state_time := 0.0
 var facing := 1
 var hp := 3
+var flash_proof := false             # the Thunderclap flash passes it by (cactus.gd sets it on the desert's Mangos,
+                                     # so a gallop can't skip the cactus chain reaction)
 var home := Vector2.ZERO
 var player: CharacterBody2D = null
 var _player_states: Array = []
@@ -233,11 +240,11 @@ func _sees_player() -> bool:
 	if player == null:
 		return false
 	var d := _to_player()
-	if absf(d.y) > SIGHT_HEIGHT:
+	if absf(d.y) > sight_height:
 		return false
 	if absf(d.x) <= BEHIND_SIGHT:
 		return true
-	return signf(d.x) == facing and absf(d.x) <= sight_range
+	return (sight_all_round or signf(d.x) == facing) and absf(d.x) <= sight_range
 
 
 # wall or ledge straight ahead
@@ -287,7 +294,7 @@ func _state_chase(_delta):
 		_set_state(State.IDLE)
 		return
 	var d := _to_player()
-	if absf(d.x) > GIVE_UP_RANGE or absf(d.y) > SIGHT_HEIGHT * 2.0:
+	if absf(d.x) > GIVE_UP_RANGE or absf(d.y) > sight_height * 2.0:
 		_set_state(State.IDLE)
 		return
 	_face_player()
@@ -371,6 +378,11 @@ func take_hit(damage: int, push: Vector2):
 	velocity = push
 	facing = -int(signf(push.x)) if push.x != 0.0 else facing
 	_set_state(State.HURT)
+
+
+# alive, as far as other code is concerned. The flash (player.gd) asks this: a flash_proof Mango says no.
+func is_alive() -> bool:
+	return hp > 0 and state != State.DEAD and not flash_proof
 
 
 # the player's counter (Q) can only catch it mid-lunge, before it has hit them (Morgan's call)
@@ -518,6 +530,21 @@ func _respawn():
 
 
 # ---------- hurting the player ----------
+# the player's been hit: a slap and an "ow" (Morgan's pick, 2026-10-04). Everything that hurts the player plays
+# it through here: the minions, EnemyKit.hurt_player (the boss, serpents, cacti, chilis...), the cactus you
+# gallop into and the shark's bite. Each one gets its own player in the level, so it's never cut off.
+static func play_hurt_sound(player: Node):
+	if player == null or not is_instance_valid(player) or player.get_parent() == null:
+		return
+	var s := AudioStreamPlayer.new()
+	s.stream = HURT_SOUND
+	s.volume_db = HURT_SOUND_DB
+	s.pitch_scale = randf_range(0.96, 1.04)
+	player.get_parent().add_child(s)
+	s.finished.connect(s.queue_free)
+	s.play(HURT_SOUND_SKIP)
+
+
 func _touch_player():
 	if player == null or state in [State.DIZZY, State.HURT, State.DEAD]:
 		return
@@ -536,3 +563,4 @@ func _touch_player():
 	# no player health yet: flash red instead
 	player.modulate = Color(1, 0.35, 0.35)
 	player.create_tween().tween_property(player, "modulate", Color.WHITE, PLAYER_SAFE_TIME)
+	play_hurt_sound(player)

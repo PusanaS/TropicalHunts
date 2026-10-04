@@ -11,6 +11,8 @@ const SPRITE_Y := -52.0                         # sprite centre when down (120 t
 const RISE := 120.0                             # fully up inside the wall
 const DIRT := [Color(0.38, 0.25, 0.13), Color(0.49, 0.43, 0.43)]
 
+@export var start_open := false   # a boss arena's door: open until close() drops it behind you
+
 var _shape: CollisionShape2D
 var _sprite: Sprite2D
 var _open := false
@@ -30,6 +32,8 @@ func _ready():
 	_sprite.position = Vector2(0, SPRITE_Y)
 	_sprite.z_index = -1                        # behind the wall and the floor
 	add_child(_sprite)
+	if start_open:
+		open(true)
 
 
 func is_open() -> bool:
@@ -52,6 +56,20 @@ func open(instant := false):
 	var player := get_tree().get_first_node_in_group("player")
 	if player:
 		player._shake(3.0, 0.25)
+
+
+# slams back down (a boss arena shutting behind you)
+func close():
+	if not _open:
+		return
+	_open = false
+	_shape.set_deferred("disabled", false)
+	var t := create_tween()
+	t.tween_property(_sprite, "position:y", SPRITE_Y, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	t.tween_callback(_dust)
+	var player := get_tree().get_first_node_in_group("player")
+	if player:
+		t.tween_callback(player._shake.bind(6.0, 0.25))
 
 
 func _dust():

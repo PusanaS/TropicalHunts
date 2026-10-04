@@ -18,3 +18,7 @@ mono_crash.*.json
 
 # Preview videos
 preview_small.mp4
+
+# macOS and Claude Code session files
+.DS_Store
+.claude/

@@ -20,6 +20,9 @@ const FruitMinion := preload("res://code/design/fruit_minion.gd")
 const LIGHT := ["ATTACK_LIGHT_1", "ATTACK_LIGHT_2"]
 const SLAMS := ["DASH_ATTACK_HEAVY_SLAM", "DASH_ATTACK_HEAVY_IMPACT"]
 const TIP_GAP := 2.5             # a wrong-move tip waits this long after the last one
+const NEXT_DELAY := 3.0          # after TUTORIAL COMPLETE, PRESS ENTER shows up this much later
+
+@export_file("*.tscn") var next_scene := "res://scene/design/level_1.tscn"   # where ENTER takes you at the end
 const ARROW := ["#######", ".#####.", "..###..", "...#..."]
 # the big arrow over a Spot, pointing down at it (its tip is the bottom pixel)
 const BIG_ARROW := ["...###...", "...###...", "...###...", "...###...", "...###...", "#########",
@@ -136,6 +139,8 @@ var _counter_at := Vector2.ZERO  # where it started
 var _dead := {}                  # mango -> dead last frame
 var _counterable := {}           # mango -> could be countered last frame
 var _tip_ready := 0.0
+var _done_at := -1.0             # when the last station was cleared
+var _enter_down := false
 var _last_target: Node2D = null  # the dummy that took the last hit that counted
 var _back := Node2D.new()        # flags and the stand-here pad, behind the player
 var _front := Node2D.new()       # arrows and the counter cue, in front of everything
@@ -270,6 +275,7 @@ func _complete():
 		_last_target.break_off(_steps[_index]["break"])
 	if _index == _steps.size() - 1:
 		hud.finale()
+		_done_at = _now()
 	else:
 		hud.clear(_steps[_index]["word"])
 	_index += 1
@@ -445,6 +451,15 @@ func _meter(kind: String) -> float:
 func _process(_delta):
 	_back.queue_redraw()
 	_front.queue_redraw()
+	# all done: ENTER goes on to Level 1
+	if _done_at < 0.0 or next_scene == "" or _now() - _done_at < NEXT_DELAY:
+		return
+	hud.prompt = "PRESS {ENTER} FOR LEVEL 1"
+	var down := Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_KP_ENTER)
+	if down and not _enter_down:
+		Engine.time_scale = 1.0
+		get_tree().change_scene_to_file(next_scene)
+	_enter_down = down
 
 
 func _draw_back():

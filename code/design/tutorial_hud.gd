@@ -83,6 +83,7 @@ var _toast_text := ""
 var _toast_t := -100.0
 var _banner := {}
 var _finale := false
+var prompt := ""                 # blinks near the bottom when set (PRESS ENTER FOR LEVEL 1)
 var _drops := []                 # juice drops: [pos, vel, life, color]
 var _bursts := []                # pixel rings: [center, start time, color]
 var _key_centers := {}           # action -> centres of its key caps on screen (for the press rings)
@@ -294,6 +295,9 @@ func _draw_all():
 	_draw_banner(screen)
 	_draw_go(screen)
 	_draw_toast(screen)
+	if prompt != "" and int(_now * 2.0) % 2 == 0:
+		var w := Pixel.width(prompt, 1)
+		Pixel.draw_cells(_canvas, Pixel.cells(prompt, Vector2(roundf(screen.x / 2.0 - w / 2.0), screen.y - 24.0), 1), TEXT)
 	for b in _bursts:
 		var k := (_now - float(b[1])) / 0.3
 		var r := lerpf(3.0, 13.0, _ease_out(k))

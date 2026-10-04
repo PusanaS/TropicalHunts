@@ -246,6 +246,7 @@ var _charge_fade: Tween
 var _wall_impact_sound: AudioStreamPlayer
 var _recoil_speed := 0.0
 var _recoil_left := 0.0
+var _launch_left := 0.0            # launch(): air steering waits this long, so the arc goes where it was aimed
 var _knock_phase := 0               # 0 squashed against the wall, 1 flying back, 2 dazed on the ground
 var _knock_time := 0.0
 var _stars: Node2D
@@ -413,6 +414,22 @@ func _in_water() -> bool:
 	return bg != null and bg.in_water(global_position)
 
 
+# something throws the player through the air (a starfruit bounce, a blowhole, a geyser): velocity v,
+# the double jump back, and for `hold` seconds steering can't bend the arc, so it goes where it was aimed.
+# They face the way they're thrown, and can attack straight away.
+func launch(v: Vector2, hold := 0.3):
+	velocity = v
+	if v.x != 0.0:
+		facing = int(signf(v.x))
+	air_jumps_left = MAX_AIR_JUMPS
+	jump_cut_done = true
+	jump_buffer_timer = 0.0
+	combo_queued = false
+	light_in_air = false
+	_launch_left = hold
+	_set_state(State.JUMP_RISE if v.y < 0.0 else State.JUMP_FALL)
+
+
 # a swing bounced off something armored (the boss's spiky skin): knocked back a little, away from from_x
 func bounce_back(from_x: float, speed: float):
 	var dir := signf(global_position.x - from_x)
@@ -526,6 +543,7 @@ func _update_label():
 
 func _physics_process(delta):
 	state_time += delta
+	_launch_left -= delta
 
 	# แรงโน้มถ่วง (ปิดตอนลอยค้างง้างดาบ)
 	if not is_on_floor() and state != State.DASH_ATTACK_HEAVY_WINDUP:
@@ -797,7 +815,9 @@ func _state_air(delta, dir):
 		velocity.y *= JUMP_CUT
 		jump_cut_done = true
 
-	if dir != 0:
+	if _launch_left > 0.0:
+		pass                                # launched: the arc is aimed, steering waits
+	elif dir != 0:
 		var d := int(sign(dir))
 		facing = d
 		var target: float = SPEEDS[max(speed_level, 1)]

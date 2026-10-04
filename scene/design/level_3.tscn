@@ -1,0 +1,366 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://code/design/fire_chili.gd" id="chili"]
+[ext_resource type="Script" path="res://code/design/crumble.gd" id="crumble"]
+[ext_resource type="Script" path="res://code/design/dragon_whelp.gd" id="whelp"]
+[ext_resource type="Script" path="res://code/design/geyser.gd" id="geyser"]
+[ext_resource type="Script" path="res://code/design/stone_wall.gd" id="stone"]
+[ext_resource type="Script" path="res://code/design/tutorial_gate.gd" id="gate"]
+[ext_resource type="Script" path="res://code/design/dragon_drake.gd" id="drake"]
+[ext_resource type="PackedScene" uid="uid://bsrj1c4321u48" path="res://scene/player.tscn" id="player"]
+[ext_resource type="Script" path="res://code/design/level.gd" id="level"]
+[ext_resource type="Script" uid="uid://d4lgdh74p6vw7" path="res://code/live_reload.gd" id="live"]
+[ext_resource type="Script" path="res://code/design/sound_barrier.gd" id="boom"]
+[ext_resource type="Script" path="res://code/design/gallop_meter.gd" id="meter"]
+[ext_resource type="Script" path="res://code/design/movement_dust.gd" id="dust"]
+[ext_resource type="Script" path="res://code/design/living_background.gd" id="living"]
+[ext_resource type="Script" path="res://code/design/charge_fx.gd" id="chargefx"]
+
+[sub_resource type="RectangleShape2D" id="Rect_64x640"]
+size = Vector2(64.0, 640.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_1764x64"]
+size = Vector2(1764.0, 64.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_1140x64"]
+size = Vector2(1140.0, 64.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_4024x64"]
+size = Vector2(4024.0, 64.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_64x400"]
+size = Vector2(64.0, 400.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_100x362"]
+size = Vector2(100.0, 362.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_96x16"]
+size = Vector2(96.0, 16.0)
+
+[node name="Level3" type="Node2D"]
+
+[node name="Backdrop" type="Polygon2D" parent="."]
+color = Color(0.12, 0.08, 0.16, 1)
+polygon = PackedVector2Array(-1024, -2048, 7924, -2048, 7924, 1024, -1024, 1024)
+
+[node name="Level" type="Node2D" parent="."]
+
+[node name="Hazards" type="Node2D" parent="."]
+
+[node name="Enemies" type="Node2D" parent="."]
+
+[node name="BossArena" type="Node2D" parent="."]
+
+[node name="Checkpoints" type="Node2D" parent="."]
+
+[node name="Hints" type="Node2D" parent="."]
+
+[node name="KillZones" type="Node2D" parent="."]
+
+[node name="WallLeft" type="StaticBody2D" parent="Level"]
+position = Vector2(-32.0, -192.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/WallLeft"]
+shape = SubResource("Rect_64x640")
+
+[node name="Look" type="Polygon2D" parent="Level/WallLeft"]
+color = Color(0.13, 0.11, 0.15, 1)
+polygon = PackedVector2Array(-32.0, -320.0, 32.0, -320.0, 32.0, 320.0, -32.0, 320.0)
+
+[node name="FloorEmber" type="StaticBody2D" parent="Level"]
+position = Vector2(818.0, 32.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/FloorEmber"]
+shape = SubResource("Rect_1764x64")
+
+[node name="Look" type="Polygon2D" parent="Level/FloorEmber"]
+color = Color(0.13, 0.11, 0.15, 1)
+polygon = PackedVector2Array(-882.0, -32.0, 882.0, -32.0, 882.0, 32.0, -882.0, 32.0)
+
+[node name="Rim" type="Polygon2D" parent="Level/FloorEmber"]
+color = Color(0.45, 0.14, 0.08, 1)
+polygon = PackedVector2Array(-882.0, -32.0, 882.0, -32.0, 882.0, -29.0, -882.0, -29.0)
+
+[node name="Chili1" type="CharacterBody2D" parent="Enemies"]
+position = Vector2(620.0, 0.0)
+script = ExtResource("chili")
+respawn_time = 0.0
+
+[node name="Chili2" type="CharacterBody2D" parent="Enemies"]
+position = Vector2(1080.0, 0.0)
+script = ExtResource("chili")
+respawn_time = 0.0
+
+[node name="Chili3" type="CharacterBody2D" parent="Enemies"]
+position = Vector2(1420.0, 0.0)
+script = ExtResource("chili")
+respawn_time = 0.0
+
+[node name="CP1" type="Marker2D" parent="Checkpoints"]
+position = Vector2(1560.0, 0.0)
+
+[node name="LavaBed1" type="StaticBody2D" parent="Hazards"]
+position = Vector2(2270.0, 72.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Hazards/LavaBed1"]
+shape = SubResource("Rect_1140x64")
+
+[node name="Look" type="Polygon2D" parent="Hazards/LavaBed1"]
+color = Color(0.23, 0.08, 0.06, 1)
+polygon = PackedVector2Array(-570.0, -32.0, 570.0, -32.0, 570.0, 32.0, -570.0, 32.0)
+
+[node name="CrumbleCrust1" type="StaticBody2D" parent="Hazards"]
+position = Vector2(1780.0, 0.0)
+script = ExtResource("crumble")
+width = 96.0
+look = "basalt"
+
+[node name="CrumbleCrust2" type="StaticBody2D" parent="Hazards"]
+position = Vector2(1920.0, 0.0)
+script = ExtResource("crumble")
+width = 96.0
+look = "basalt"
+
+[node name="CrumbleCrust3" type="StaticBody2D" parent="Hazards"]
+position = Vector2(2060.0, 0.0)
+script = ExtResource("crumble")
+width = 96.0
+look = "basalt"
+
+[node name="CrumbleCrust4" type="StaticBody2D" parent="Hazards"]
+position = Vector2(2200.0, 0.0)
+script = ExtResource("crumble")
+width = 96.0
+look = "basalt"
+
+[node name="CrumbleCrust5" type="StaticBody2D" parent="Hazards"]
+position = Vector2(2340.0, 0.0)
+script = ExtResource("crumble")
+width = 96.0
+look = "basalt"
+
+[node name="CrumbleCrust6" type="StaticBody2D" parent="Hazards"]
+position = Vector2(2480.0, 0.0)
+script = ExtResource("crumble")
+width = 96.0
+look = "basalt"
+
+[node name="CrumbleCrust7" type="StaticBody2D" parent="Hazards"]
+position = Vector2(2620.0, 0.0)
+script = ExtResource("crumble")
+width = 96.0
+look = "basalt"
+
+[node name="CrumbleCrust8" type="StaticBody2D" parent="Hazards"]
+position = Vector2(2760.0, 0.0)
+script = ExtResource("crumble")
+width = 96.0
+look = "basalt"
+
+[node name="WhelpCrust1" type="Node2D" parent="Enemies"]
+position = Vector2(2130.0, -110.0)
+script = ExtResource("whelp")
+respawn_time = 0.0
+
+[node name="WhelpCrust2" type="Node2D" parent="Enemies"]
+position = Vector2(2550.0, -110.0)
+script = ExtResource("whelp")
+respawn_time = 0.0
+
+[node name="FloorGeysers" type="StaticBody2D" parent="Level"]
+position = Vector2(4852.0, 32.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/FloorGeysers"]
+shape = SubResource("Rect_4024x64")
+
+[node name="Look" type="Polygon2D" parent="Level/FloorGeysers"]
+color = Color(0.13, 0.11, 0.15, 1)
+polygon = PackedVector2Array(-2012.0, -32.0, 2012.0, -32.0, 2012.0, 32.0, -2012.0, 32.0)
+
+[node name="Rim" type="Polygon2D" parent="Level/FloorGeysers"]
+color = Color(0.45, 0.14, 0.08, 1)
+polygon = PackedVector2Array(-2012.0, -32.0, 2012.0, -32.0, 2012.0, -29.0, -2012.0, -29.0)
+
+[node name="CP2" type="Marker2D" parent="Checkpoints"]
+position = Vector2(2900.0, 0.0)
+
+[node name="Geyser1" type="Node2D" parent="Hazards"]
+position = Vector2(3300.0, 0.0)
+script = ExtResource("geyser")
+kind = "lava"
+period = 2.8
+offset = 0.0
+
+[node name="Geyser2" type="Node2D" parent="Hazards"]
+position = Vector2(3550.0, 0.0)
+script = ExtResource("geyser")
+kind = "lava"
+period = 2.8
+offset = 0.7
+
+[node name="Geyser3" type="Node2D" parent="Hazards"]
+position = Vector2(3800.0, 0.0)
+script = ExtResource("geyser")
+kind = "lava"
+period = 2.8
+offset = 1.4
+
+[node name="Geyser4" type="Node2D" parent="Hazards"]
+position = Vector2(4050.0, 0.0)
+script = ExtResource("geyser")
+kind = "lava"
+period = 2.8
+offset = 2.1
+
+[node name="WhelpBait1" type="Node2D" parent="Enemies"]
+position = Vector2(3282.0, -26.0)
+script = ExtResource("whelp")
+respawn_time = 6.0
+patrol_range = 0.0
+sight_range = 50.0
+
+[node name="WhelpBait2" type="Node2D" parent="Enemies"]
+position = Vector2(3782.0, -26.0)
+script = ExtResource("whelp")
+respawn_time = 6.0
+patrol_range = 0.0
+sight_range = 50.0
+
+[node name="CP3" type="Marker2D" parent="Checkpoints"]
+position = Vector2(4250.0, 0.0)
+
+[node name="WallStone1" type="StaticBody2D" parent="Level"]
+position = Vector2(4550.0, 0.0)
+script = ExtResource("stone")
+size = Vector2(48, 112)
+
+[node name="WallStoneTop" type="StaticBody2D" parent="Level"]
+position = Vector2(4550.0, -312.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/WallStoneTop"]
+shape = SubResource("Rect_64x400")
+
+[node name="Look" type="Polygon2D" parent="Level/WallStoneTop"]
+color = Color(0.13, 0.11, 0.15, 1)
+polygon = PackedVector2Array(-32.0, -200.0, 32.0, -200.0, 32.0, 200.0, -32.0, 200.0)
+
+[node name="FireWall" type="Node2D" parent="Hazards"]
+position = Vector2(4980.0, 0.0)
+script = ExtResource("geyser")
+kind = "lava"
+always_on = true
+height = 150.0
+
+[node name="WallFireCeiling" type="StaticBody2D" parent="Level"]
+position = Vector2(4980.0, -331.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/WallFireCeiling"]
+shape = SubResource("Rect_100x362")
+
+[node name="Look" type="Polygon2D" parent="Level/WallFireCeiling"]
+color = Color(0.13, 0.11, 0.15, 1)
+polygon = PackedVector2Array(-50.0, -181.0, 50.0, -181.0, 50.0, 181.0, -50.0, 181.0)
+
+[node name="WhelpGuard" type="Node2D" parent="Enemies"]
+position = Vector2(4920.0, -80.0)
+script = ExtResource("whelp")
+respawn_time = 4.0
+patrol_range = 30.0
+sight_range = 140.0
+
+[node name="WhelpAnchor" type="Node2D" parent="Enemies"]
+position = Vector2(5040.0, -60.0)
+script = ExtResource("whelp")
+respawn_time = 0.0
+patrol_range = 0.0
+sight_range = 0.0
+
+[node name="CP4" type="Marker2D" parent="Checkpoints"]
+position = Vector2(5120.0, 0.0)
+
+[node name="BossGate" type="StaticBody2D" parent="."]
+position = Vector2(5600.0, 0.0)
+script = ExtResource("gate")
+start_open = true
+
+[node name="WallBossGate" type="StaticBody2D" parent="BossArena"]
+position = Vector2(5600.0, -312.0)
+
+[node name="Shape" type="CollisionShape2D" parent="BossArena/WallBossGate"]
+shape = SubResource("Rect_64x400")
+
+[node name="Look" type="Polygon2D" parent="BossArena/WallBossGate"]
+color = Color(0.13, 0.11, 0.15, 1)
+polygon = PackedVector2Array(-32.0, -200.0, 32.0, -200.0, 32.0, 200.0, -32.0, 200.0)
+
+[node name="BossTrigger" type="Marker2D" parent="."]
+position = Vector2(5710.0, 0.0)
+
+[node name="LedgeArenaL" type="StaticBody2D" parent="Level"]
+position = Vector2(5900.0, -82.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/LedgeArenaL"]
+shape = SubResource("Rect_96x16")
+
+[node name="Look" type="Polygon2D" parent="Level/LedgeArenaL"]
+color = Color(0.18, 0.16, 0.2, 1)
+polygon = PackedVector2Array(-48.0, -8.0, 48.0, -8.0, 48.0, 8.0, -48.0, 8.0)
+
+[node name="LedgeArenaR" type="StaticBody2D" parent="Level"]
+position = Vector2(6500.0, -82.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/LedgeArenaR"]
+shape = SubResource("Rect_96x16")
+
+[node name="Look" type="Polygon2D" parent="Level/LedgeArenaR"]
+color = Color(0.18, 0.16, 0.2, 1)
+polygon = PackedVector2Array(-48.0, -8.0, 48.0, -8.0, 48.0, 8.0, -48.0, 8.0)
+
+[node name="Boss" type="Node2D" parent="BossArena"]
+position = Vector2(6200.0, -180.0)
+script = ExtResource("drake")
+arena_left = 5640.0
+arena_right = 6760.0
+floor_y = 0.0
+perch_height = 150.0
+
+[node name="WallRight" type="StaticBody2D" parent="Level"]
+position = Vector2(6832.0, -192.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/WallRight"]
+shape = SubResource("Rect_64x640")
+
+[node name="Look" type="Polygon2D" parent="Level/WallRight"]
+color = Color(0.13, 0.11, 0.15, 1)
+polygon = PackedVector2Array(-32.0, -320.0, 32.0, -320.0, 32.0, 320.0, -32.0, 320.0)
+
+[node name="Player" parent="." instance=ExtResource("player")]
+position = Vector2(96.0, -8.0)
+
+[node name="LevelDirector" type="Node2D" parent="."]
+script = ExtResource("level")
+level_number = 3
+level_name = "VOLCANO HEART"
+next_scene = ""
+kill_y = 400.0
+rank_times = Vector3(170, 240, 330)
+boss_path = NodePath("../BossArena/Boss")
+
+[node name="LiveReload" type="Node" parent="."]
+script = ExtResource("live")
+
+[node name="SoundBarrier" type="Node2D" parent="."]
+script = ExtResource("boom")
+
+[node name="GallopMeter" type="Node2D" parent="."]
+script = ExtResource("meter")
+
+[node name="MovementDust" type="Node2D" parent="."]
+script = ExtResource("dust")
+
+[node name="LivingBackground" type="Node2D" parent="."]
+script = ExtResource("living")
+theme = "volcano"
+
+[node name="ChargeFX" type="Node2D" parent="."]
+script = ExtResource("chargefx")

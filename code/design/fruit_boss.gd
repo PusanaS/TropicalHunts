@@ -63,6 +63,10 @@ const BONK_PUSH := Vector2(140, -200)
 const FLOOR_FRICTION := 900.0
 const HURTBOX := Rect2(-30, -80, 60, 80)
 const TOUCH_BOX := Rect2(-24, -70, 48, 68)
+# the Thunderclap flash leaves it alone (Morgan's call, 2026-10-04): galloping into it bounces you off its
+# armour, staggered back and dazed, with the clang a Q gets (you're bounced this far before you touch it)
+const GALLOP_REACH := 20.0
+const PLAYER_HALF_WIDTH := 13.0
 const FLASH_TIME := 0.08
 const SHAKE_LAND := Vector2(10, 0.35)     # strength, seconds
 const SHAKE_BONK := Vector2(14, 0.4)
@@ -294,6 +298,7 @@ func _physics_process(delta):
 	_check_player_attack()
 	if state == State.DEAD:
 		return
+	_check_gallop_bounce()
 
 	match state:
 		State.IDLE:
@@ -537,6 +542,46 @@ func _check_player_attack():
 	if _armor_blocks(hit["damage"]) and player.has_method("bounce_back"):
 		player.bounce_back(global_position.x, ARMOR_PUSHBACK)    # bounced off the spiky skin: knocked back a little
 	take_hit(hit["damage"], hit["push"])
+
+
+# ---------- the Thunderclap flash and galloping into it ----------
+# to the flash it's not there while you gallop (Morgan's call): it never sets one off or gets cut by one.
+# (The flash asks is_alive(); otherwise it's alive while it has health.)
+func is_alive() -> bool:
+	if player and is_instance_valid(player) and player.speed_level >= player.get_script().SPEEDS.size() - 1:
+		return false
+	return hp > 0 and state != State.DEAD
+
+
+# galloping straight at it, about to touch it: you bounce off
+func _check_gallop_bounce():
+	if player == null or state in [State.JUGGLED, State.COMBO, State.BROKEN, State.FINISHED]:
+		return
+	var top: int = player.get_script().SPEEDS.size() - 1
+	var d := global_position.x - player.global_position.x
+	if player.speed_level < top or signf(player.velocity.x) != signf(d) or absf(player.global_position.y - global_position.y) > 60.0:
+		return
+	if absf(d) - TOUCH_BOX.size.x / 2.0 - PLAYER_HALF_WIDTH < GALLOP_REACH:
+		_bounce_player()
+
+
+# the flash's dash stopped short of it (flash_finish.gd): it bounces you off the same way
+func flash_bounce(_p: Node = null):
+	if player:
+		_bounce_player()
+
+
+# off its armour: the Q's clang and sparks, and you're staggered back and dazed (the player's KNOCKBACK, as
+# when you gallop into a wall). It isn't touched.
+func _bounce_player():
+	_spawn_sparks()
+	_armor_sound.play(ARMOR_SOUND_SKIP)
+	EnemyKit.protect_player(0.8)          # its spiky skin doesn't hurt you on top of that
+	if player.has_method("_start_knockback"):
+		player._start_knockback()
+	else:
+		player.speed_level = 0
+		player.bounce_back(global_position.x, ARMOR_PUSHBACK)
 
 
 # armor is off while it's dizzy or up in the air (and in the states where hits don't count anyway)

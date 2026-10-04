@@ -48,12 +48,15 @@ var _mods := []                  # each target's modulate before it flashed whit
 var _ghosts := []                # [Sprite2D, start time]
 var _last_ghost_x := 0.0
 var _cuts := 0
+var _blocker: Node2D = null      # something armoured the dash stopped short of (the Pineapple)
+const BLOCK_GAP := 40.0          # the dash stops this far before it (its body and yours)
 
 
 func _ready():
 	top_level = true
 	global_position = Vector2.ZERO
 	z_index = 40
+	_stop_at_blocker()
 	_start = _now()
 	Engine.time_scale = 0.0
 	player.set_physics_process(false)    # (it still ticks at time scale 0: keys pressed now would act)
@@ -78,6 +81,27 @@ func _exit_tree():
 			player.set_physics_process(true)
 	if is_instance_valid(player):
 		player.flashing = false
+
+
+# an enemy with flash_bounce() in the way (the Pineapple, fruit_boss.gd: the flash leaves it alone, Morgan's
+# call) stops the dash short of it. Anything past it isn't reached, and once time starts again it bounces
+# you off itself.
+func _stop_at_blocker():
+	var facing := float(player.facing)
+	var reach := (to.x - from.x) * facing
+	var best := INF
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not (e is Node2D) or not e.has_method("flash_bounce"):
+			continue
+		var d: float = (e.global_position.x - from.x) * facing
+		if d > 0.0 and d < reach and d < best and absf(e.global_position.y - from.y) <= 60.0:
+			best = d
+			_blocker = e
+	if _blocker == null:
+		return
+	var stop := maxf(best - BLOCK_GAP, 0.0)
+	to.x = from.x + facing * stop
+	targets = targets.filter(func(t): return is_instance_valid(t) and (t.global_position.x - from.x) * facing <= stop)
 
 
 func _now() -> float:
@@ -120,6 +144,8 @@ func _run():
 	_resumed = _now()
 	Engine.time_scale = 1.0
 	player.set_physics_process(true)     # still galloping: its velocity was kept
+	if _blocker and is_instance_valid(_blocker):
+		_blocker.flash_bounce(player)    # ...unless it ran into the Pineapple: bounced off, dazed
 	if is_instance_valid(_psprite):
 		_psprite.play(_old_anim)
 		_psprite.frame = _old_frame
@@ -183,9 +209,9 @@ func _ghost(x: float):
 	_ghosts.append([g, _now()])
 
 
+# (it was alive when the flash picked it; now only check it hasn't died since. Not is_alive(): a chili
+# that starts burning during the freeze would say no, and survive the cut you saw)
 func _alive(e: Node) -> bool:
-	if e.has_method("is_alive"):
-		return e.is_alive()
 	var hp = e.get("hp")
 	return hp == null or hp > 0
 

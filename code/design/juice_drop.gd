@@ -38,8 +38,8 @@ func _ready():
 
 
 func _on_body_entered(body):
-	# the player is the only CharacterBody2D on layer 1; fruit enemies are on their own layer
-	if body is CharacterBody2D:
+	# only the player picks it up (coconuts are solid, on the player's layer too)
+	if body.is_in_group("player"):
 		_collect()
 
 
