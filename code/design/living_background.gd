@@ -271,6 +271,12 @@ func _gust(origin: Vector2, strength: float):
 			p[1] += d / dist * strength * 30.0 * (1.0 - dist / 200.0)
 
 
+# the flash's path through the grass, from code/flash_finish.gd (its dash moves the player over several
+# frames, so the one-frame jump check in _watch_player doesn't see it)
+func cut_path(x0: float, x1: float, y: float, dir: float):
+	_slice(x0, x1, y, dir)
+
+
 func _slice(x0: float, x1: float, y: float, dir: float):
 	for i in range(_gx.bsearch(minf(x0, x1)), _gx.bsearch(maxf(x0, x1))):
 		if absf(_gy[i] - y) < 20.0:

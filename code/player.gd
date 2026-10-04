@@ -60,9 +60,10 @@ const MOVE_STATES := [State.IDLE, State.WALK, State.RUN, State.SPRINT, State.GAL
 
 # ---------- ค่าปรับแต่ง ----------
 const SPEEDS := [0.0, 120.0, 260.0, 420.0, 600.0]   # index = speed level (0 หยุด, 1 เดิน, 2 วิ่ง, 3 วิ่งเร็ว, 4 gallop)
-const TIME_TO_LEVEL_2 := 1.0     # เปลี่ยนจาก 0.35 เป็น 1.0 (จากเดินไปวิ่งใช้เวลา 1 วินาที)
-const TIME_TO_LEVEL_3 := 1.9     # เปลี่ยนจาก 0.60 เป็น 3.0 (วิ่งเร็วในวินาทีที่ 3)
-const TIME_TO_LEVEL_4 := 3.0     # gallop: keep holding 1.1 s after the sprint starts
+const TIME_TO_LEVEL_2 := 0.5     # เปลี่ยนจาก 0.35 เป็น 1.0 (จากเดินไปวิ่งใช้เวลา 1 วินาที)
+                                 # then 0.5: Morgan wanted half as long walking. Run and sprint keep their lengths:
+const TIME_TO_LEVEL_3 := 1.4     # เปลี่ยนจาก 0.60 เป็น 3.0 (วิ่งเร็วในวินาทีที่ 3)   (was 1.9: run 0.9 s)
+const TIME_TO_LEVEL_4 := 2.5     # gallop: keep holding 1.1 s after the sprint starts   (was 3.0)
 const DOUBLE_TAP_LEVEL_3_TIME := 0.66
 const DOUBLE_TAP_WINDOW := 0.7   
 const ACCEL := 1600.0
@@ -90,9 +91,10 @@ const HEAVY_WINDUP_TIME := 0.12     # was 0.50: Morgan didn't like the pause bef
 const HEAVY_SMASH_TIME := 0.40
 
 # hold W: the heavy swing holds and charges; letting go hits everything around, harder the longer
-# it charged. The effects (glow, shockwave, dust cloud) are in code/design/charge_fx.gd.
-const CHARGE_TIME := 1.0                      # seconds to full charge
-const CHARGE_MAX_HOLD := 3.0                  # it lets go by itself after this
+# it charged. Keep holding and it goes off by itself just after full charge. The effects (glow, shockwave, dust cloud) are in code/design/charge_fx.gd.
+const CHARGE_TIME := 0.35                     # seconds to full charge (was 1.0, then 0.5: Morgan wanted a shorter hold)
+const CHARGE_FULL_HOLD := 0.15                # at full charge it holds just this long, then lets go by itself
+const CHARGE_MAX_HOLD := CHARGE_TIME + CHARGE_FULL_HOLD   # (was 2 s at full charge: Morgan wanted holding W to go off sooner)
 const CHARGED_SMASH_TIME := 0.5
 const CHARGE_RADIUS := Vector2(80, 180)       # reach at no charge / full charge
 const CHARGE_DAMAGE := Vector2(3, 6)          # damage at no charge / full charge
@@ -152,10 +154,12 @@ const FOOTSTEP_DB := -12.0          # quieter than the attacks
 const FOOTSTEP_WATER_SOUND := preload("res://sounds/footsteps/footstep_water.wav")
 const FOOTSTEP_WATER_DB := -10.0
 
-# hold W: a build-up made in code (sounds/charge_buildup.wav). It rises over CHARGE_TIME (1 s), "tings" at
-# full charge, then hums until CHARGE_MAX_HOLD (3 s). It stops the moment the charge ends.
+# hold W: a build-up made in code (sounds/charge_buildup.wav). The file rises for 1 s, "tings", then hums
+# for 2 s. It starts partway in when CHARGE_TIME is shorter, so the ting lands right at full charge. It
+# stops (a quick fade) the moment the charge ends.
 const CHARGE_SOUND := preload("res://sounds/charge_buildup.wav")
 const CHARGE_SOUND_DB := -8.0
+const CHARGE_SOUND_FULL_AT := 1.0   # where the ting is in the file
 
 # galloping into a wall: an impact, the same one as the boss's, played lighter
 const WALL_IMPACT_SOUNDS := [preload("res://sounds/IMPACT_dragon-studio-hard-heavy-impact-515256.mp3")]
@@ -196,9 +200,10 @@ const FLASH_PUSH := Vector2(80, -160)
 
 # Counter: press Q while an enemy is lunging at you -> time stops, it's cut in half, then the player
 # teleports to every other enemy that was on screen and cuts them too (code/counter_chain.gd).
-# Enemies opt in with is_counterable() (true mid-lunge) and cut_in_half(dir).
-const COUNTER_RANGE := 96.0
+# Enemies opt in with is_counterable() (true mid-lunge) and cut_in_half(dir, a, b).
+const COUNTER_RANGE := 160.0         # was 96: the Mango now pounces from 140 px, and the whole pounce counts
 const CounterChain := preload("res://code/counter_chain.gd")
+const FlashFinish := preload("res://code/flash_finish.gd")   # the flash's freeze-frame, then its kills
 const COUNTER_BLOCKED := [          # committed moves that can't be interrupted by a counter
 	State.ATTACK_HEAVY_WINDUP, State.ATTACK_HEAVY_SMASH,
 	State.DASH_ATTACK_HEAVY_WINDUP, State.DASH_ATTACK_HEAVY_SLAM, State.DASH_ATTACK_HEAVY_IMPACT,
@@ -214,6 +219,7 @@ var facing := 1
 var speed_level := 0
 var hold_time := 0.0
 var charge := 0.0                  # 0..1 while W is held (charge_fx.gd reads it)
+var flashing := false              # true while the flash's hits land (flash_finish.gd), so targets can tell
 var coyote_timer := 0.0
 var jump_buffer_timer := 0.0
 var jump_cut_done := false
@@ -317,7 +323,7 @@ func _start_charge_sound():
 	if _charge_fade:
 		_charge_fade.kill()
 	_charge_sound.volume_db = CHARGE_SOUND_DB
-	_charge_sound.play()
+	_charge_sound.play(maxf(CHARGE_SOUND_FULL_AT - CHARGE_TIME, 0.0))
 
 
 # a very quick fade instead of a hard stop, so it doesn't click (real time: hit-freezes don't slow it)
@@ -970,15 +976,31 @@ func _flash_strike():
 	dist = minf(dist, FLASH_MAX_DIST)
 	dist = _flash_clear_distance(dist)      # stop at walls
 	dist = _flash_ground_distance(dist)     # never land over a pit
+	var cut := []
 	for e in targets:
 		if (e.global_position.x - start.x) * facing <= dist and e.has_method("take_hit"):
-			e.take_hit(FLASH_DAMAGE, Vector2(facing * FLASH_PUSH.x, FLASH_PUSH.y))
-	global_position.x = start.x + facing * dist
+			cut.append(e)
+	cut.sort_custom(func(a, b): return absf(a.global_position.x - start.x) < absf(b.global_position.x - start.x))
+	var end := Vector2(start.x + facing * dist, start.y)
 	velocity.x = facing * SPEEDS[speed_level]      # come out of it at the same speed (sprint or gallop)
-	_flash_streak(start + Vector2(0, -20), global_position + Vector2(0, -20))
-	_sparks.restart()                               # burst where it lands
-	_shake(SHAKE_BIG_STRENGTH, SHAKE_SMALL_TIME)
 	_set_state(MOVE_STATES[speed_level])
+	if cut.is_empty():         # (nothing to cut after all: just reappear there)
+		global_position = end
+		_flash_streak(start + Vector2(0, -20), end + Vector2(0, -20))
+		_sparks.restart()
+		_shake(SHAKE_BIG_STRENGTH, SHAKE_SMALL_TIME)
+		return
+	# you're not moved yet: with time stopped you dash there, cutting each enemy as you pass, hold the
+	# pose for a beat, then they drop one after another (code/flash_finish.gd, the professor's idea:
+	# show the kills). It moves you, and does the streak, sparks and shake.
+	var finish := FlashFinish.new()
+	finish.player = self
+	finish.targets = cut
+	finish.from = start
+	finish.to = end
+	finish.damage = FLASH_DAMAGE
+	finish.push = Vector2(facing * FLASH_PUSH.x, FLASH_PUSH.y)
+	get_parent().add_child(finish)
 
 
 func _try_counter() -> bool:

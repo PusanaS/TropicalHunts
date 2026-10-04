@@ -5,7 +5,7 @@ extends Node2D
 #   3. the player teleports next to each other enemy that was on screen, nearest first, and cuts it
 #   4. time starts again: every cut enemy falls apart at once, big shake
 # Runs on real time. The cut halves hang in the air until time starts again.
-# Enemies opt in with cut_in_half(dir). The COUNTER banner is drawn by the combo HUD ("combo_hud" group).
+# Enemies opt in with cut_in_half(dir, a, b): they split along the slash drawn from a to b. The COUNTER banner is drawn by the combo HUD ("combo_hud" group).
 
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
 
@@ -121,7 +121,7 @@ func _cut(e: Node2D):
 	var tilt := Vector2(dir * 14.0, -9.0 if _cuts % 2 == 0 else 9.0)    # the diagonal alternates
 	_slashes.append([mid - tilt, mid + tilt, _now()])
 	if e.has_method("cut_in_half"):
-		e.cut_in_half(int(dir))
+		e.cut_in_half(int(dir), mid - tilt, mid + tilt)    # it splits along this same slash
 	_clang()
 	_cuts += 1
 	get_tree().call_group("combo_hud", "counter_cut", _cuts)

@@ -27,9 +27,10 @@ enum State { IDLE, PATROL, NOTICE, CHASE, WINDUP, LUNGE, DIZZY, HURT, DEAD }
 @export var chase_speed := 80.0
 @export var patrol_range := 96.0     # how far it wanders from where it was placed
 @export var sight_range := 160.0
-@export var lunge_range := 72.0      # starts the windup when the player is this close
+@export var lunge_range := 140.0     # starts the windup when the player is this close (was 72: Morgan wanted
+                                     # it to pounce from further away, for a bigger counter window)
 @export var windup_time := 0.45      # the warning shake before the lunge
-@export var lunge_velocity := Vector2(230, -170)
+@export var lunge_velocity := Vector2(190, -320)   # a slower, higher pounce (was 230, -170): ~0.65 s in the air
 @export var dizzy_time := 0.7        # punish window after a lunge
 @export var respawn_time := 3.0      # gym only: comes back after this long, 0 = stays dead
 
@@ -106,6 +107,7 @@ var _player_states: Array = []
 var _last_player_state := -1
 var _last_player_time := 0.0
 var _hit_this_swing := false
+var _lunge_landed := false           # this lunge already hit the player: too late to counter it
 var _kill_sound := AudioStreamPlayer.new()
 var _damage_sound := AudioStreamPlayer.new()
 
@@ -156,6 +158,7 @@ func _set_state(s: State):
 			velocity.y = NOTICE_HOP
 		State.LUNGE:
 			velocity = Vector2(facing * lunge_velocity.x, lunge_velocity.y)
+			_lunge_landed = false
 
 
 func _play_anim(s: State):
@@ -370,23 +373,25 @@ func take_hit(damage: int, push: Vector2):
 	_set_state(State.HURT)
 
 
-# the player's counter (Q) can only catch it mid-lunge
+# the player's counter (Q) can only catch it mid-lunge, before it has hit them (Morgan's call)
 func is_counterable() -> bool:
-	return state == State.LUNGE
+	return state == State.LUNGE and not _lunge_landed
 
 
-# killed by the counter: the current frame splits into a top and bottom half that fly apart
-func cut_in_half(dir: int):
+# killed by the counter: the current frame splits in two along the counter's slash (from a to b, in the
+# world), so the cut lines up with the slash you see. Without a line it splits straight across the middle.
+# The top half slides off down the cut, the bottom half slumps.
+func cut_in_half(dir: int, a := Vector2.INF, b := Vector2.INF):
 	if state == State.DEAD:
 		return
 	hp = 0
 	_hitstop(HITSTOP_HEAVY)
-	_spawn_halves(dir)
+	_spawn_halves(dir, a, b)
 	_die()
 	sprite.visible = false
 
 
-func _spawn_halves(dir: int):
+func _spawn_halves(dir: int, a: Vector2, b: Vector2):
 	var tex := sprite.sprite_frames.get_frame_texture(sprite.animation, sprite.frame)
 	if tex == null:
 		return
@@ -396,25 +401,73 @@ func _spawn_halves(dir: int):
 	if atlas_tex:
 		sheet = atlas_tex.atlas
 		region = atlas_tex.region
-	var half := region.size.y / 2.0
+	# the frame as a rectangle in the sprite's own space, and the cut line in that space too
 	var center := sprite.offset + (Vector2.ZERO if sprite.centered else region.size / 2.0)
-	for i in 2:    # 0 = top half, 1 = bottom half
-		var top := i == 0
-		var piece := Sprite2D.new()
+	var rect := Rect2(center - region.size / 2.0, region.size)
+	var la := center - Vector2(20, 0)
+	var lb := center + Vector2(20, 0)
+	if a != Vector2.INF and b != Vector2.INF and a != b:
+		la = sprite.to_local(a)
+		lb = sprite.to_local(b)
+	var corners: Array[Vector2] = [rect.position, Vector2(rect.end.x, rect.position.y), rect.end, Vector2(rect.position.x, rect.end.y)]
+	var halves := _split(corners, la, lb)
+	# the top half slides off down the slope of the cut
+	var along := (lb - la).normalized()
+	if along.y < 0.0 or (along.y == 0.0 and along.x * dir < 0.0):
+		along = -along
+	var top_index := 0 if _centroid(halves[0]).y < _centroid(halves[1]).y else 1
+	for i in 2:
+		var pts: Array[Vector2] = halves[i]
+		if pts.size() < 3:
+			continue
+		var c := _centroid(pts)
+		var poly := PackedVector2Array()
+		var uv := PackedVector2Array()
+		for p in pts:
+			poly.append(p - c)
+			var u := rect.end.x - p.x if sprite.flip_h else p.x - rect.position.x
+			uv.append(region.position + Vector2(u, p.y - rect.position.y))
+		var piece := Polygon2D.new()
 		piece.texture = sheet
-		piece.region_enabled = true
-		piece.region_rect = Rect2(region.position + Vector2(0, half * i), Vector2(region.size.x, half))
-		piece.flip_h = sprite.flip_h
+		piece.polygon = poly
+		piece.uv = uv
 		get_parent().add_child(piece)
-		piece.global_position = sprite.to_global(center + Vector2(0, half * (i - 0.5)))
+		piece.global_position = sprite.to_global(c)
 		piece.global_scale = sprite.global_scale
-		# top half slides off along the cut and spins, bottom half slumps
+		var top := i == top_index
+		var slide := along * (18.0 if top else -3.0) + Vector2(0, -2 if top else 3)
 		var t := piece.create_tween().set_parallel()
-		t.tween_property(piece, "position", piece.position + Vector2(dir * (20 if top else -4), -12 if top else 3), 0.35) \
-			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		t.tween_property(piece, "rotation", dir * (0.8 if top else -0.2), 0.35)
+		t.tween_property(piece, "position", piece.position + slide, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		t.tween_property(piece, "rotation", signf(along.x) * (0.6 if top else -0.15), 0.35)
 		t.tween_property(piece, "modulate:a", 0.0, 0.25).set_delay(0.35)
 		t.chain().tween_callback(piece.queue_free)
+
+
+# a convex polygon cut by the line through a and b: [the points on one side, the points on the other]
+func _split(poly: Array[Vector2], a: Vector2, b: Vector2) -> Array:
+	var one: Array[Vector2] = []
+	var other: Array[Vector2] = []
+	for i in poly.size():
+		var p := poly[i]
+		var q := poly[(i + 1) % poly.size()]
+		var sp := (b - a).cross(p - a)
+		var sq := (b - a).cross(q - a)
+		if sp >= 0.0:
+			one.append(p)
+		if sp <= 0.0:
+			other.append(p)
+		if (sp > 0.0 and sq < 0.0) or (sp < 0.0 and sq > 0.0):
+			var x := p.lerp(q, sp / (sp - sq))
+			one.append(x)
+			other.append(x)
+	return [one, other]
+
+
+func _centroid(pts: Array[Vector2]) -> Vector2:
+	var c := Vector2.ZERO
+	for p in pts:
+		c += p
+	return c / maxf(pts.size(), 1.0)
 
 
 # tiny freeze on impact. The reset is bound to Engine, so it still runs if this minion is freed.
@@ -475,6 +528,7 @@ func _touch_player():
 	if not mine.intersects(theirs):
 		return
 	_player_safe_until = _now() + PLAYER_SAFE_TIME
+	_lunge_landed = state == State.LUNGE
 	var dir := signf(_to_player().x)
 	if dir == 0.0:
 		dir = facing

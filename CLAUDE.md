@@ -34,12 +34,13 @@ Repo: https://github.com/PusanaS/TropicalHunts (owned by BOOM).
 
 ## Player numbers
 These come from `player.gd`, with Godot's default gravity of 980.
-- **Speeds:** walk 120 px/s. Run 260 after holding a direction for 1s. Sprint 420 after 1.9s. Gallop 600 after 3s: speed level 4, BOOM's `GALLOP` animation, added 2026-09-29. `MOVE_STATES` maps each speed level to its state.
+- **Speeds:** walk 120 px/s. Run 260 after holding a direction for 0.5s. Sprint 420 after 1.4s. Gallop 600 after 2.5s (Morgan's call, 2026-10-04: half as long walking; these were 1s, 1.9s and 3s): speed level 4, BOOM's `GALLOP` animation, added 2026-09-29. `MOVE_STATES` maps each speed level to its state.
 - **Player art:** BOOM's current sheet is `Sprite/PsV3.png`. It also has a one-frame `FLASH` animation that the code doesn't use yet.
 - **Double-tap a direction:** run instantly, and sprint 0.5s later. While the DEBUG switch `debug_tap_gallop` in `player.gd` is on (it's on by default; ENEMY session, Morgan's call), a double-tap goes straight to full-speed gallop instead. Untick it on the Player in the Inspector for normal play. The logic is in `_double_tap_start()`.
 - **Jump height:** about 103px. The double jump adds about 82px, for about 185px in total.
 - **Full jump distance:** walking about 110px, running about 240px, sprinting about 385px.
 - **Size:** the player is about 40px tall, and the node's origin is at the feet.
+- **Hold W (the charged smash):** full charge after 0.35s (`CHARGE_TIME`; Morgan's call, 2026-10-04, was 1s). Keep holding and it goes off by itself 0.15s after full charge (`CHARGE_FULL_HOLD`; was 2s, Morgan's call), so a held W fires about 0.6s after the press. Letting go earlier fires a weaker one. The build-up sound starts partway into its file so its "ting" lands at full charge.
 - **View limits:** at sprint speed you see only about 0.57s ahead. From 256px up, you can't see the ground.
 - **Air attacks (added 2026-09-29):** Q in the air does the light combo with no lunge, keeping your drift, then goes back to falling. Landing in the middle of it cancels it into LAND (tracked by `light_in_air`, added by the ENEMY session). W in the air goes straight into `DASH_ATTACK_HEAVY_SLAM`: an immediate slam down with a big-shake impact, with no hop or hover (Morgan's call). The ground W wind-ups are also only 0.12s now (Morgan's call, done by the ENEMY session): `HEAVY_WINDUP_TIME` and `DASH_HEAVY_WINDUP_TIME` are 0.12, with `ANIM_SPEED_OVERRIDE` speeding up the wind-up animations to match. The standing W smashes almost at once, and the running W does a quick leap straight into the slam, with no hover. The sprint flash still only triggers on the ground.
 
@@ -51,14 +52,23 @@ These come from `player.gd`, with Godot's default gravity of 980.
   - **Walls and pits:** it stops at walls and never lands over a pit.
   - **After:** the player comes out of it still galloping (also Morgan's call). There's no cooldown, so flashes can chain through groups of enemies.
   - **Visuals:** made in code: a yellow streak along the path, a spark burst where it lands, and screen shake. It has no state or animation of its own.
-- **The counter** (`_try_counter` in `player.gd`, which spawns `code/counter_chain.gd`). Press Q while an enemy is mid-lunge within 96px. It's Morgan's design; the horizontal beam was removed.
+  - **You see the kills (the professor's idea, 2026-10-04):** `code/flash_finish.gd`. It's no longer a teleport.
+    - **The dash:** with time stopped, you dash along the path (0.15s) leaving yellow afterimages and a lightning streak.
+    - **Each enemy you pass:** you swing (the pose alternates), a slash appears across it, it flashes white, the Q sound plays, and the dash catches on it for 0.04s.
+    - **The pose:** you hold it for 0.22s.
+    - **The drop:** time restarts and they drop in order, 0.07s apart. Mangos split along their slash (`cut_in_half`), others take the flash's hit. You keep galloping.
+    - **Slash lines are thin** (3px edge, 1px core; Morgan's call).
+    - **Grass:** the path through the grass is cut via `cut_path()` on the living background.
+    - **`flashing`:** `player.flashing` is true while those hits land (the tutorial's dummies report them as "FLASH").
+    - **The player's code is paused during the freeze**, like the counter.
+- **The counter** (`_try_counter` in `player.gd`, which spawns `code/counter_chain.gd`). Press Q while an enemy is mid-lunge within 160px (`COUNTER_RANGE`, was 96). It doesn't work once that lunge has already hit you (Morgan's call). The Mango now pounces from 140px on a slower, higher arc (`lunge_range` 140, `lunge_velocity` (190, -320), was 72 and (230, -170)), so you have about twice as long to counter it (Morgan's call, 2026-10-04). It's Morgan's design; the horizontal beam was removed.
   - **Time stop:** `Engine.time_scale` is 0, re-applied every frame because hit-freezes reset it. The world dims to indigo, while the player stays lit (z 35) with physics off.
-  - **The cuts:** after 0.18s the lunging enemy is cut in half. Then the player teleports beside each other enemy with `cut_in_half()` that was on screen when the counter started, nearest first (leaving a teal afterimage and a streak), and cuts it too.
+  - **The cuts:** after 0.18s the lunging enemy is cut in half. It splits along the exact slash line the counter draws (`cut_in_half(dir, a, b)`, Morgan's call), and the top half slides off down the cut. Then the player teleports beside each other enemy with `cut_in_half()` that was on screen when the counter started, nearest first (leaving a teal afterimage and a streak), and cuts it too.
   - **Resume:** time restarts, every cut enemy falls apart at once, there's a big shake, and the player is protected for 0.6s.
   - **Safety:** if the node is removed mid-chain, `_exit_tree` always restores `time_scale`.
   - **Banner:** a pixel "COUNTER!" banner with a chain count (X2, X3…) is drawn by the combo HUD through `counter_start`, `counter_cut` and `counter_end`.
   - **Scope:** only enemies with `cut_in_half()` are chained, so the boss isn't. It works from any state except the heavy attacks.
-- **How enemies work with the flash:** an enemy joins the group `"enemies"`, has a `take_hit(damage, push)` function, and can optionally have `is_alive()`. For the counter it also needs `is_counterable()` (true mid-lunge) and `cut_in_half(dir)`. The fruit minion has both. The player joins the group `"player"`.
+- **How enemies work with the flash:** an enemy joins the group `"enemies"`, has a `take_hit(damage, push)` function, and can optionally have `is_alive()`. For the counter it also needs `is_counterable()` (true mid-lunge, until the lunge hits) and `cut_in_half(dir, a, b)` (split along the slash from a to b; both are optional). The fruit minion has both. The player joins the group `"player"`.
 - **The Big Pineapple boss, from the ENEMY session:** `code/design/fruit_boss.gd`, `boss_wave.gd`, `enemy_kit.gd` and `scene/design/fruit_boss.tscn`.
   - It summons Mango minions. The flash hits it, but the counter doesn't: it has no `is_counterable()`.
   - **Juggling is for bosses only** (Morgan's call; minions don't juggle). A hit that gets through the boss's armor launches it (`JUGGLED`). Armor-piercing means damage 3, or any hit while it's dizzy or already juggled, including the flash. It lands into `RECOVER`: it can still be hurt then, but not launched again.
@@ -68,8 +78,9 @@ These come from `player.gd`, with Godot's default gravity of 980.
     - **Breaking it:** any attack, a charged W in reach, or galloping into it.
     - **After:** it drops back down after 1s, waiting while anything is in the doorway, and calls `burst(pos, 3.0)` when it lands. It isn't in `"enemies"`.
     - **Background hook:** effects can shake the living background with `call_group("living_background", "burst", pos, strength)`.
+    - **For other scenes:** it emits `shattered` when it breaks. `gallop_only` makes only galloping break it (the tutorial uses both).
 - **Don't rename these; enemy code depends on them:**
-  - **In `player.gd`:** `state`, `state_time`, `facing`, the `State` enum (its order too: new states go at the end; the newest is `KNOCKBACK`), the `"player"` group, `_shake(strength, time)`, `_set_state()`, `play_swing_sound()` (the boss air combo calls it) and `bounce_back()` (the boss calls it).
+  - **In `player.gd`:** `state`, `state_time`, `facing`, `flashing`, the `State` enum (its order too: new states go at the end; the newest is `KNOCKBACK`), the `"player"` group, `_shake(strength, time)`, `_set_state()`, `play_swing_sound()` (the boss air combo calls it) and `bounce_back()` (the boss calls it).
   - **In `scene/player.tscn`:** the sprite node's name, `AnimatedSprite2D`, and the animations `IDLE`, `ATTACK_HEAVY_WINDUP`, `ATTACK_LIGHT_1`, `ATTACK_LIGHT_2` and `DASH_ATTACK_LIGHT`. The boss finisher (`code/design/boss_finisher.gd`) plays these directly.
   - **The boss finisher takes control of the player for about 3 seconds.** It pauses the player's physics (`set_physics_process(false)`) and moves the player itself. Anything added to the player's `_process` still runs during the finisher, so don't put movement or animation there.
   - **In `fruit_minion.gd`:** `PLAYER_HITS`, `PLAYER_BOX`, `PLAYER_PUSH`, `PLAYER_SAFE_TIME`, `_player_safe_until`, `respawn_time`, `state`, `state_time` and `State`.
@@ -96,6 +107,24 @@ These come from `player.gd`, with Godot's default gravity of 980.
     - **No dust:** ENEMY's `movement_dust.gd` and `charge_fx.gd` skip W dust in water by asking `in_water(pos)` on the node in the `"living_background"` group.
   - **Leaves and pollen** drift around the camera.
   - **Reactions:** reaching the top speed level, LAND, ATTACK_HEAVY_SMASH, DASH_ATTACK_HEAVY_IMPACT, CHARGED_SMASH (the strongest) and every enemy hp drop send a shockwave ripple through the grass and leaves. A flash (a big jump in one frame) cuts a path through the grass.
+- **The tutorial, `scene/design/tutorial.tscn` (added 2026-10-04):** every mechanic explained, then tested, one at a time.
+  - **Stations, left to right:** MOVE, JUMP, DOUBLE JUMP, DOUBLE TAP, SLASH, SMASH, CHARGED SMASH, ROLLING SLASH, LEAP SLAM, AIR SLASH, AIR SLAM, COUNTER, THUNDERCLAP FLASH, FINAL TEST (3 Mangos that stay dead).
+  - **How it works:** each station is a child of `Stations` and ends in a gate (`code/design/tutorial_gate.gd`, the portcullis art) that winches up when its test is passed. `code/design/tutorial.gd` (the "Director" node) decides what counts, from the player's state names. The steps and their hints are in `_make_steps()`. The game never waits for the HUD: a station counts from the moment you walk in, and its gate opens as soon as you pass, even if its card is still waiting to come in (for example, behind the TUTORIAL intro). The HUD catches up. If you walk into a station while the last one's stamp is still playing, its card skips the big centre entrance and goes straight to the top, so its pips are there right away (LEAP SLAM looked like it wasn't counting before this).
+  - **The look (Morgan asked for premium animations):** `code/design/tutorial_hud.gd`, in BOOM's pixel style like the combo HUD. Each station's title slams in big, then flies to the top. Key caps rise into a band at the bottom and act out the presses, and they light up when the real key is pressed. Juice drops fly from the hit into progress pips, and a CLEAR stamp follows. Wrong moves get a tip. In the world: flags, bobbing arrows, and a "!" then a "Q / NOW!" over the counter Mango. A `Spot` marker (CHARGED SMASH) gets a glowing floor pad and a big arrow with STAND HERE (Morgan asked for it to be explicit). Both turn green and say NOW HOLD W while you stand on it, and that station hides its dummy arrows.
+  - **`code/design/pixel_font.gd`:** the full 5x7 font (A-Z, 0-9, punctuation, arrows) and key caps. `{braces}` highlight words. Don't call a constant `Font` (it's a Godot class name); the scripts use `Pixel`.
+  - **Dummies:** `code/design/tutorial_target.gd`. PLACEHOLDER sacks on posts, or hanging (`hanging = true`) for air attacks. They take hits like the minion (EnemyKit) and never die. A station with `"break"` set ends with `break_off(style)` on the dummy that took the last hit (Morgan's call). The pieces fly off spinning, bounce, then blink out; the stump stays.
+    - **SLASH, `"cut"`:** one slanted cut under the sack, and the whole top flies off. Sound: the boss finisher's crash, quieter.
+    - **SMASH, `"smash"`:** crushed flat for a moment, then the post snaps low and jagged, and the head, sack and a chunk of post fly apart with straw and dust. Sound: the boss's heavy impact.
+    - **AIR SLASH, `"snap"`** (hanging dummies only): the cord snaps just above its head. The dummy flies off and the rest of the cord whips back up, frayed. The hanging dummy is a pendulum, so each hit swings it well out and it tilts along its rope (Morgan asked for a more visible swing). AIR SLASH clears in 2 hits.
+  - **SMASH counts a held W (the charged smash) too** (Morgan's call).
+  - **ROLLING SLASH needs one roll through both dummies** (Morgan's call). A roll that only catches one drains the pips and gives a tip.
+  - **Testing one station:** move the Player in the scene; stations left of where it starts count as done. LiveReload keeps your place too.
+  - **Double tap = gallop at once (Morgan's call):** the tutorial teaches the `debug_tap_gallop` behaviour as the real one. DOUBLE TAP's way out is the gym's breakable gate (`breakable_door.gd` with `gallop_only` on and `reseal_time` 0). Galloping through it, with the smash and slow-mo, clears the station (Morgan's call). SLASH after it is 1024px wide, so there's room to let go before its gate. There's no hold-to-build-up station, and no SKID STOP (removed, Morgan's call). Galloping into a wall anywhere shows a tip.
+  - **Dummies ignore the flash except in THUNDERCLAP FLASH** (`flashable` on `tutorial_target.gd`), so galloping at them earlier doesn't set it off. They do it by answering `is_alive()` false while the player gallops; the flash skips enemies that aren't alive.
+  - **Moves unlock at their station (Morgan's call):** no double jump before DOUBLE JUMP, and no gallop before DOUBLE TAP. Until then, holding a direction or double-tapping tops out at the sprint. `_apply_locks()` in `tutorial.gd` does this by holding down `air_jumps_left` and `hold_time` each frame, so `player.gd` is untouched.
+  - **MOVE and JUMP clear once you get to their flag or past it, at any speed or height** (their Goals have `metadata/pass`; Morgan's call). You can jump right over JUMP's flag.
+  - **JUMP has one 64px step and one flag:** a tapped jump falls short, a held one makes it.
+  - **Combat station floors are 448px wide** so the living background puts no shallow water in them (W in water makes a wave, not the smash being taught).
 - **`code/design/training_dummy.gd` and `scene/design/flash_test.tscn`:** placeholder dummies set up to test the flash: a row of three, one next to a pit, one next to a wall.
 - **Fixes in `player.gd`, approved by BOOM:**
   - `_state_brake`: a quick double-tap that landed during the braking time was ignored.

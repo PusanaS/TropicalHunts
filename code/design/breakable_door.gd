@@ -33,6 +33,9 @@ const DIRT := [Color(0.38, 0.25, 0.13), Color(0.49, 0.43, 0.43)]
 const Z_FX := 3
 
 @export var reseal_time := 1.0                  # a new gate drops this long after it breaks (0 = stays open)
+@export var gallop_only := false                # only galloping into it breaks it, not attacks (the tutorial's DOUBLE TAP gate)
+
+signal shattered                                # it just broke (the tutorial listens for this)
 
 var player: CharacterBody2D = null
 var _names: Array = []
@@ -99,12 +102,12 @@ func _check_hits():
 	if dir == 0.0:
 		dir = 1.0
 	var box := Rect2(global_position + Vector2(-SIZE.x / 2.0, -SIZE.y), SIZE)
-	if not EnemyKit.player_attack_hitting(player, _names, box).is_empty():
+	if not gallop_only and not EnemyKit.player_attack_hitting(player, _names, box).is_empty():
 		_shatter(dir, false)
 		return
 	var dx := absf(global_position.x - player.global_position.x)
 	var s: String = _names[player.state]
-	if s == "CHARGED_SMASH":
+	if s == "CHARGED_SMASH" and not gallop_only:
 		var radius: Vector2 = player.get_script().CHARGE_RADIUS
 		var charge: float = player.charge
 		if dx <= lerpf(radius.x, radius.y, charge):
@@ -165,6 +168,7 @@ func _shatter(dir: float, big: bool):
 	# the next gate is already waiting up in the wall: only its spike tips show
 	_raised = SIZE.y
 	_sprite.position.y = SPRITE_Y - _raised
+	shattered.emit()
 
 
 # steps through SLOWMO on real-time timers (bound to Engine, so they still run if the gate is freed)
