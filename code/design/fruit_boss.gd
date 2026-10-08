@@ -82,7 +82,6 @@ const JUGGLE_GRAVITY := 0.55              # falls slower while juggled, so combo
 const JUGGLE_DECAY := 0.1                 # each extra hit in a combo knocks it up 10% less...
 const JUGGLE_MIN := 0.35                  # ...down to this much
 const JUGGLE_AIR_DRAG := 120.0
-const COMBO_COLOR := Color(0.55, 0.2, 0.15)
 const COMBO_PULL_RANGE := 220.0           # the player must be this close to be pulled into the air combo
 
 const ANIM_NAMES := {
@@ -104,6 +103,7 @@ const ANIM_NAMES := {
 }
 
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
+const NoDamagePop := preload("res://code/design/no_damage_pop.gd")
 const BossFinisher := preload("res://code/design/boss_finisher.gd")
 const BossAirCombo := preload("res://code/design/boss_air_combo.gd")
 const BossWave := preload("res://code/design/boss_wave.gd")
@@ -595,6 +595,7 @@ func take_hit(damage: int, push: Vector2):
 	if _armor_blocks(damage):
 		_spawn_sparks()           # bounced off the spiky skin
 		_armor_sound.play(ARMOR_SOUND_SKIP)
+		NoDamagePop.show_on(self, global_position + Vector2(0, HURTBOX.position.y - 12.0))
 		return
 	hp -= damage
 	_damage_sound.play(DAMAGE_SOUND_SKIP)
@@ -824,9 +825,7 @@ func _touch_player():
 
 # ---------- finisher-ready sparkle over its head (blinks) ----------
 func _draw():
-	# combo counter while it's being juggled or in the air combo
-	if state in [State.JUGGLED, State.COMBO] and _juggle_hits >= 2:
-		draw_string(ThemeDB.fallback_font, Vector2(-40, -124), "%d HITS" % _juggle_hits, HORIZONTAL_ALIGNMENT_CENTER, 80, 10, COMBO_COLOR)
+	# (the "N HITS" counter over its head while juggled was removed, Morgan's call: the combo HUD counts them)
 	if state != State.BROKEN or int(state_time * 6.0) % 2 == 1:
 		return
 	draw_rect(Rect2(-6, GLINT_Y, 13, 1), GLINT_COLOR)

@@ -29,7 +29,8 @@ const ANIM_NAMES := {
 	State.DASH_ATTACK_HEAVY_IMPACT: "DASH_ATTACK_HEAVY_IMPACT",
 	State.HEAVY_CHARGE: "ATTACK_HEAVY_WINDUP",        # held on its last frame while charging
 	State.CHARGED_SMASH: "ATTACK_HEAVY_SMASH",
-	State.KNOCKBACK: "KNOCKBACK",                    # PLACEHOLDER: built in _add_knockback_anim from BOOM's frames
+	State.KNOCKBACK: "KNOCKBACK",                    # BOOM's PsVxp.png (built in _add_extra_anims); then STUN
+	State.EDGE_GRAB: "EDGE_GRAB",                    # BOOM's PsVxp.png
 }
 
 # สเตทที่รียูสคลิป แล้วอยากให้เล่นเร็ว/ช้ากว่าปกติ (ไม่กระทบ const เดิม)
@@ -53,6 +54,7 @@ enum State {
 	GALLOP,                          # new states go at the end: enemies read states by position
 	HEAVY_CHARGE, CHARGED_SMASH,     # hold W: the heavy swing holds and charges; let go: massive hit
 	KNOCKBACK,                       # galloped into a wall: knocked back, then dazed for a moment
+	EDGE_GRAB,                       # hanging from a ledge's edge: jump/up climbs on, down/away lets go
 }
 
 # the ground-move state for each speed level
@@ -75,7 +77,7 @@ const BRAKE_HARD_FRICTION := 1300.0
 const JUMP_VELOCITY := -450.0
 const DOUBLE_JUMP_VELOCITY := -400.0
 const MAX_AIR_JUMPS := 1
-const JUMP_CUT := 0.45
+const JUMP_CUT := 0.82                # a quick tap still clears a 64px step (~70-83px); holding gets the full ~103 (Morgan's call, 2026-10-08: was 0.45, a tap was only ~25-50px)
 const COYOTE_TIME := 0.10
 const JUMP_BUFFER := 0.10
 const AIR_FRICTION := 300.0
@@ -172,8 +174,19 @@ const WALL_IMPACT_PITCH := 0.95     # a bit higher than the boss's (0.8): the pl
 # PLACEHOLDER animation, made in code from BOOM's existing frames until he draws a real KNOCKBACK.
 const KNOCKBACK_PUSH := Vector2(180, -200)    # back and up
 const KNOCKBACK_IMPACT_TIME := 0.08            # squashed flat against the wall, flashing white
-const KNOCKBACK_TILT := 0.6                    # radians: how far it leans back while flying
-const KNOCKBACK_DAZE := 0.3                    # dazed on the ground before control returns
+const KNOCKBACK_TILT := 0.2                    # radians: how far it leans back while flying (BOOM's frame already leans)
+const KNOCKBACK_DAZE := 0.5                    # dazed on the ground before control returns (one STUN loop; was 0.3)
+# BOOM's extra frames (PsVxp.png, 128x128 cells like PsV3.png): 1 edge grab, 2 knockback, 3-6 stun (stars drawn in)
+const EXTRA_SHEET := preload("res://PsVxp.png")
+const STUN_FPS := 8.0
+# grabbing a ledge's edge (Morgan's call, 2026-10-08): falling past a ledge while pushing toward it, with its top
+# near your hands, you catch it and hang (EDGE_GRAB). Jump or up pulls you on; down or pushing away lets go.
+const GRAB_HANG := 27.0                        # hanging: your feet are this far below the ledge's top (the paw's on it)
+const GRAB_WINDOW := Vector2(16, 40)           # a ledge top this far above your feet (min, max) can be caught
+const GRAB_FEEL := 21.0                        # how far in front of your middle it feels for the ledge
+const GRAB_COOL := 0.3                         # after letting go or climbing on, before you can grab again
+const CLIMB_HOP := Vector2(130, -340)          # pulling up onto the ledge: a little hop up and forward
+const BODY_HALF := 15.0                        # (the capsule's radius)
 const KNOCKBACK_SHAKE := Vector2(8, 0.25)      # strength, seconds
 
 # jump and double jump: a crunchy step, sounds/JUMP_V2_freesound_community-snow-step-1-81064.mp3 trimmed and
@@ -249,7 +262,9 @@ var _recoil_left := 0.0
 var _launch_left := 0.0            # launch(): air steering waits this long, so the arc goes where it was aimed
 var _knock_phase := 0               # 0 squashed against the wall, 1 flying back, 2 dazed on the ground
 var _knock_time := 0.0
-var _stars: Node2D
+var _grab_cool := 0.0
+var _grab_top := 0.0                           # the ledge you're hanging from: its top...
+var _grab_wall := 0.0                          # ...and its face (global)
 var _jump_sound: AudioStreamPlayer
 var _double_jump_sound: AudioStreamPlayer
 
@@ -281,15 +296,10 @@ func _ready():
 	sprite.frame_changed.connect(_on_sprite_frame)
 	_charge_sound = _make_sound(CHARGE_SOUND)
 	_charge_sound.max_polyphony = 1
-	_add_knockback_anim()
+	_add_extra_anims()
 	_jump_sound = _make_jump_sound(JUMP_SOUNDS)
 	_double_jump_sound = _make_jump_sound(JUMP_SOUNDS)
 	_double_jump_sound.pitch_scale = DOUBLE_JUMP_PITCH
-	_stars = Node2D.new()
-	_stars.z_index = 1
-	_stars.visible = false
-	_stars.draw.connect(_draw_stars)
-	add_child(_stars)
 	var impacts := AudioStreamRandomizer.new()
 	for s in WALL_IMPACT_SOUNDS:
 		impacts.add_stream(-1, s)
@@ -339,15 +349,22 @@ func _stop_charge_sound():
 # ---------- galloping into a wall: knockback ----------
 # PLACEHOLDER animation: three of BOOM's existing poses (brake = squashed against the wall, double jump =
 # flying back, land = dazed), copied from his animations so they follow his updates. His sheet is untouched.
-func _add_knockback_anim():
+# BOOM's extra animations, cut from PsVxp.png at runtime (scene/player.tscn's SpriteFrames are untouched):
+# EDGE_GRAB (frame 1), KNOCKBACK (frame 2) and STUN (frames 3-6, looping, with its own dizzy stars)
+func _add_extra_anims():
 	var frames := sprite.sprite_frames
-	if frames.has_animation("KNOCKBACK"):
-		return
-	frames.add_animation("KNOCKBACK")
-	frames.set_animation_loop("KNOCKBACK", false)
-	frames.add_frame("KNOCKBACK", frames.get_frame_texture("BRAKE", 1))
-	frames.add_frame("KNOCKBACK", frames.get_frame_texture("DOUBLE_JUMP", 0))
-	frames.add_frame("KNOCKBACK", frames.get_frame_texture("LAND", 0))
+	for a: Array in [["EDGE_GRAB", [0], 5.0, false], ["KNOCKBACK", [1], 5.0, false], ["STUN", [2, 3, 4, 5], STUN_FPS, true]]:
+		var anim: String = a[0]
+		if frames.has_animation(anim):
+			frames.remove_animation(anim)
+		frames.add_animation(anim)
+		frames.set_animation_loop(anim, a[3])
+		frames.set_animation_speed(anim, a[2])
+		for cell: int in a[1]:
+			var tex := AtlasTexture.new()
+			tex.atlas = EXTRA_SHEET
+			tex.region = Rect2(cell * 128, 0, 128, 128)
+			frames.add_frame(anim, tex)
 
 
 func _start_knockback():
@@ -359,13 +376,11 @@ func _start_knockback():
 	velocity = Vector2.ZERO
 	sprite.self_modulate = Color(2.5, 2.5, 2.5)     # white flash
 	sprite.scale = Vector2(0.75, 1.2)                # squashed against the wall
-	_stars.visible = true
 	_shake(KNOCKBACK_SHAKE.x, KNOCKBACK_SHAKE.y)
 
 
 func _state_knockback(delta):
 	_knock_time += delta
-	_stars.queue_redraw()
 	match _knock_phase:
 		0:   # squashed flat against the wall, flashing white
 			velocity = Vector2.ZERO
@@ -373,7 +388,6 @@ func _state_knockback(delta):
 				_knock_phase = 1
 				_knock_time = 0.0
 				velocity = Vector2(-facing * KNOCKBACK_PUSH.x, KNOCKBACK_PUSH.y)
-				sprite.frame = 1
 				sprite.scale = Vector2.ONE
 				sprite.self_modulate = Color.WHITE
 		1:   # flying back in an arc, leaning further back (head away from the wall)
@@ -381,7 +395,7 @@ func _state_knockback(delta):
 			if is_on_floor() and _knock_time > 0.05:
 				_knock_phase = 2
 				_knock_time = 0.0
-				sprite.frame = 2
+				sprite.play("STUN")             # BOOM's stun: dazed, stars round the head
 				sprite.rotation = 0.0
 			elif _knock_time > 2.0:            # never landed (fell off something): just fall
 				_set_state(State.JUMP_FALL)
@@ -395,17 +409,72 @@ func _end_knockback_look():
 	sprite.rotation = 0.0
 	sprite.scale = Vector2.ONE
 	sprite.self_modulate = Color.WHITE
-	_stars.visible = false
 
 
-# PLACEHOLDER dizzy stars: three little stars circling over the head while knocked back
-func _draw_stars():
-	for i in 3:
-		var a := state_time * 7.0 + i * TAU / 3.0
-		var p := Vector2(cos(a) * 10.0, -46.0 + sin(a) * 3.0).round()
-		_stars.draw_rect(Rect2(p + Vector2(-1, 0), Vector2(3, 1)), Color("ccad4b"))
-		_stars.draw_rect(Rect2(p + Vector2(0, -1), Vector2(1, 3)), Color("ccad4b"))
-		_stars.draw_rect(Rect2(p, Vector2(1, 1)), Color("ecdfdb"))
+# ---------- grabbing a ledge's edge ----------
+# falling past a ledge while pushing toward it, its top near your hands: catch it and hang (EDGE_GRAB)
+func _try_grab(dir: float) -> bool:
+	if _grab_cool > 0.0 or velocity.y < -60.0 or _launch_left > 0.0 or dir == 0.0 or int(signf(dir)) != facing:
+		return false
+	var f := float(facing)
+	var p := global_position
+	# feel down in front of you for the ledge's top, within reach of your hands
+	var x := p.x + f * GRAB_FEEL
+	var top_hit := _grab_ray(Vector2(x, p.y - GRAB_WINDOW.y - 2.0), Vector2(x, p.y - GRAB_WINDOW.x))
+	if top_hit.is_empty() or top_hit["normal"].y > -0.7:
+		return false
+	var top: float = top_hit["position"].y
+	# its face, just under the top, and open space above it to climb into
+	var face := _grab_ray(Vector2(p.x, top + 3.0), Vector2(p.x + f * (GRAB_FEEL + 10.0), top + 3.0))
+	if face.is_empty() or face["normal"].x * f > -0.7:          # (a real wall, not a slope like a ramp)
+		return false
+	if not _grab_ray(Vector2(p.x, top - 8.0), Vector2(p.x + f * (GRAB_FEEL + 10.0), top - 8.0)).is_empty():
+		return false
+	_grab_top = top
+	_grab_wall = face["position"].x
+	global_position = Vector2(_grab_wall - f * BODY_HALF, top + GRAB_HANG)
+	velocity = Vector2.ZERO
+	speed_level = 0
+	hold_time = 0.0
+	air_jumps_left = MAX_AIR_JUMPS
+	_set_state(State.EDGE_GRAB)
+	_step_sound.play()
+	return true
+
+
+# hanging: jump or up pulls you on with a little hop; down or pushing away lets go
+func _state_edge_grab(_delta, dir):
+	velocity = Vector2.ZERO
+	var f := float(facing)
+	if _grab_ray(Vector2(_grab_wall + f * 4.0, _grab_top - 4.0), Vector2(_grab_wall + f * 4.0, _grab_top + 4.0)).is_empty():
+		_let_go_of_ledge()                       # the ledge has gone (crumbled, broken)
+		return
+	if jump_buffer_timer > 0.0 or Input.is_action_just_pressed("ui_up"):
+		jump_buffer_timer = 0.0
+		jump_cut_done = true
+		_grab_cool = GRAB_COOL
+		velocity = Vector2(f * CLIMB_HOP.x, CLIMB_HOP.y)
+		_jump_sound.play()
+		_set_state(State.JUMP_RISE)
+	elif Input.is_action_just_pressed("ui_down") or (dir != 0.0 and int(signf(dir)) != facing):
+		_let_go_of_ledge()
+
+
+func _let_go_of_ledge():
+	_grab_cool = GRAB_COOL
+	_set_state(State.JUMP_FALL)
+
+
+# a ray against the level's solid ground (not enemies or anything that moves on its own)
+func _grab_ray(from: Vector2, to: Vector2) -> Dictionary:
+	var q := PhysicsRayQueryParameters2D.create(from, to, collision_mask, [get_rid()])
+	var hit := get_world_2d().direct_space_state.intersect_ray(q)
+	if hit.is_empty():
+		return {}
+	var c = hit["collider"]
+	if not (c is StaticBody2D or c is AnimatableBody2D) or c.is_in_group("enemies"):
+		return {}
+	return hit
 
 
 # feet in the living background's water (pits and shallows)
@@ -544,9 +613,10 @@ func _update_label():
 func _physics_process(delta):
 	state_time += delta
 	_launch_left -= delta
+	_grab_cool -= delta
 
 	# แรงโน้มถ่วง (ปิดตอนลอยค้างง้างดาบ)
-	if not is_on_floor() and state != State.DASH_ATTACK_HEAVY_WINDUP:
+	if not is_on_floor() and state != State.DASH_ATTACK_HEAVY_WINDUP and state != State.EDGE_GRAB:
 		velocity += get_gravity() * delta
 
 	if is_on_floor():
@@ -596,6 +666,8 @@ func _physics_process(delta):
 			_state_dash_heavy_impact(delta)
 		State.KNOCKBACK:
 			_state_knockback(delta)
+		State.EDGE_GRAB:
+			_state_edge_grab(delta, dir)
 
 	if _recoil_left > 0.0:             # bounced off armor: this wins over whatever the state wants
 		_recoil_left -= delta
@@ -808,6 +880,9 @@ func _state_air(delta, dir):
 			return
 
 	if _try_air_attack():
+		return
+
+	if _try_grab(dir):                       # a ledge's edge in reach: catch it
 		return
 
 	# กระโดดสั้น/ยาวตามระยะเวลากดปุ่ม (ใช้กับดับเบิ้ลจัมพ์ด้วย)

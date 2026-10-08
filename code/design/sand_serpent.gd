@@ -24,9 +24,10 @@ extends Node2D
 # at z 3) hides whatever is under the surface. Only one serpent strikes at a time.
 # PLACEHOLDER art drawn in code (BOOM's style: flat colours, one shade each, whole pixels).
 
-enum State { SWIM, EMERGE, REAR, STRIKE, HOLD, RECOIL, REPELLED, STUNNED, DIVE, DYING, DEAD }
+enum State { SWIM, EMERGE, REAR, STRIKE, HOLD, RECOIL, REPELLED, STUNNED, DIVE, DYING, DEAD, DRAG }
 
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
+const NoDamagePop := preload("res://code/design/no_damage_pop.gd")
 const JuiceSpray := preload("res://code/design/juice_spray.gd")
 const JuiceDrop := preload("res://code/design/juice_drop.gd")
 # every hit: a wet squelch, a different pitch each time (like the minion's)
@@ -53,6 +54,13 @@ const COIL_TIME := 0.38               # ...then the tell: coils back, eyes flash
 const STRIKE_TIME := 0.16
 const HOLD_TIME := 0.14               # stretched out after the strike (still counterable)
 const RECOIL_TIME := 0.28
+# its bite drags you down (Morgan's call, 2026-10-08): it hauls you straight back to where its body comes out of
+# the sand, then pulls you right under. You're back at the last checkpoint (OOPS!), and on the juice clock it
+# costs PENALTY seconds (a red "-5s" flies off to the countdown).
+const DRAG_TIME := 0.32
+const DRAG_TO := Vector2(0, -12)      # the head gets here with you (just over its root)...
+const PULL_TIME := 0.4                # ...then pulls you down under the sand
+const PENALTY := 5.0
 const REPEL_TIME := 0.35              # knocked back by a hit, then it dives
 # Q's knock: the head whips way back and up, chin in the air, overshoots, wobbles dazed, then comes again
 # (Morgan wanted it to really knock the head back)
@@ -119,6 +127,7 @@ var _strike_to := Vector2.ZERO
 var _repel_to := Vector2.ZERO
 var _aimed := false
 var _landed := false                  # this strike already hit you: too late to counter it
+var _dragging := false                # it has you in its jaws
 var _target_x := 0.0
 var _target_for := 0.0                # where you were when that target was picked
 var _swim_dir := 1.0
@@ -249,6 +258,19 @@ func _physics_process(delta: float):
 			if state_time >= HOLD_TIME:
 				_head_from = _head
 				_set_state(State.RECOIL)
+		State.DRAG:                                           # hauling you back to its root, then right under
+			if state_time < DRAG_TIME:
+				var k := state_time / DRAG_TIME
+				_head = _head_from.lerp(DRAG_TO, k * k * (3.0 - 2.0 * k))
+			else:
+				var k := clampf((state_time - DRAG_TIME) / PULL_TIME, 0.0, 1.0)
+				_head = DRAG_TO.lerp(TUCKED + Vector2(0, 24), k * k)
+				if randf() < delta * 30.0:
+					_burst_sand(0.3)
+			if player and is_instance_valid(player):
+				player.global_position = global_position + _head - PLAYER_BODY
+			if state_time >= DRAG_TIME + PULL_TIME:
+				_end_drag()
 		State.RECOIL:
 			var k := clampf(state_time / RECOIL_TIME, 0.0, 1.0)
 			_head = _head_from.lerp(_rest(), 1.0 - pow(1.0 - k, 2.0))
@@ -413,12 +435,43 @@ func _aim() -> Vector2:
 	return to
 
 
-# the strike reaching you
+# the strike reaching you: it grabs you and drags you down
 func _bite():
 	if _landed or player == null:
 		return
 	if EnemyKit.hurt_player(player, _head_rect(), global_position.x + _head.x):
 		_landed = true
+		player.velocity = Vector2.ZERO
+		var states: Dictionary = player.get_script().State
+		player._set_state(states["JUMP_FALL"])          # (flailing)
+		player.set_physics_process(false)
+		_dragging = true
+		_head_from = _head
+		_set_state(State.DRAG)
+
+
+# you've gone under: the sand closes over you, you're sent back to the checkpoint (minus PENALTY seconds on the
+# juice clock), and it dives
+func _end_drag():
+	_dragging = false
+	_burst_sand(1.0)
+	if player and is_instance_valid(player):
+		player.velocity = Vector2.ZERO
+		player.set_physics_process(true)
+		var states: Dictionary = player.get_script().State
+		player._set_state(states["IDLE"])
+		player._shake(6.0, 0.25)
+		get_tree().call_group("level", "juice_penalty", PENALTY, global_position + Vector2(0, -30))
+		if get_tree().get_first_node_in_group("level"):
+			get_tree().call_group("level", "respawn_player")
+		else:                                             # (no level here: you're spat back out)
+			player.global_position = global_position + Vector2(0, -4)
+	_dive(RESURFACE)
+
+
+func _exit_tree():
+	if _dragging and player and is_instance_valid(player):   # removed mid-drag: give you back
+		player.set_physics_process(true)
 
 
 func _dive(wait: float):
@@ -482,6 +535,7 @@ func _struck(dir: float, heavy: bool):
 # knocked back without a scratch: a clang off its scales, sparks, and its head whips way back, chin up
 func _knock(dir: float):
 	_clang.play(CLANG_SOUND_SKIP)
+	NoDamagePop.show_on(self, global_position + _head + Vector2(0, -16))   # it doesn't hurt it: say so
 	EnemyKit.hitstop(get_tree(), 0.06)
 	if player and player.has_method("_shake"):
 		player._shake(3.0, 0.12)

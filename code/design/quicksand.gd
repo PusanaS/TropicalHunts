@@ -46,6 +46,7 @@ var _lowered := false
 
 
 func _ready():
+	add_to_group("quicksand")     # (sand_serpent.gd's bite calls sink_player)
 	z_index = 3                   # in front of the player's feet, so they look sunk in
 	process_physics_priority = 10 # after the player has moved this frame
 
@@ -60,7 +61,8 @@ func _physics_process(delta: float):
 		_sprite_y = _sprite.position.y
 	var feet := player.global_position - global_position
 	var inside := feet.x >= 0.0 and feet.x <= width and absf(feet.y) <= 6.0
-	var on := inside and player.is_on_floor()
+	# (something holding you still, like the cactus chain, pauses your physics: the sand waits too)
+	var on := inside and player.is_on_floor() and player.is_physics_processing()
 	if on:
 		if not _was_on and absf(player.velocity.x) > STUCK_SPEED:
 			_stuck(feet, signf(player.velocity.x))
@@ -97,6 +99,18 @@ func _physics_process(delta: float):
 		b[2] -= delta
 	_bits = _bits.filter(func(b): return b[2] > 0.0)
 	queue_redraw()
+
+
+# something dragged you down (a snake fruit's bite): you're this deep at once, if you're in this sand.
+# Keep moving to dig out; standing still buries you the rest of the way.
+func sink_player(depth: float):
+	if player == null or not is_instance_valid(player):
+		return
+	var feet := player.global_position - global_position
+	if feet.x < 0.0 or feet.x > width or absf(feet.y) > 6.0:
+		return
+	_sink = maxf(_sink, depth)
+	_spray(feet, 0.0, 12)
 
 
 # deep in it: shudders (faster and faster) and sand flicking up around you

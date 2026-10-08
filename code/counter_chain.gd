@@ -74,6 +74,9 @@ func _ready():
 	_start = _now()
 	_running = true
 	Engine.time_scale = 0.0
+	# nothing can hurt you while it runs: you're teleported right up against each enemy, and their touch checks
+	# still run with time stopped (it used to flash you red with the hurt sound, Morgan's bug report 2026-10-08)
+	EnemyKit.protect_player(1.0)
 	get_tree().call_group("combo_hud", "counter_start")
 	_run()
 
@@ -120,6 +123,7 @@ func _run():
 func _process(_delta):
 	if _running:
 		Engine.time_scale = 0.0  # hit-freezes elsewhere reset it: keep the world stopped
+		EnemyKit.protect_player(0.5)
 	var now := _now()
 	for g in _ghosts:
 		var ghost: Sprite2D = g[0]

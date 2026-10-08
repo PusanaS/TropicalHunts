@@ -341,6 +341,7 @@ func _slam():
 	for at in [0.0, tip * 0.5, tip]:
 		get_tree().call_group("living_background", "burst", global_position + Vector2(at * _dir, 0), 3.0)
 	Cactus.chain_follow(global_position.x + _pts[SEGMENTS].x)  # hold the view on the crown a moment
+	Cactus.release_player()                                   # and you can move again
 	fallen.emit()
 	queue_redraw()
 
@@ -363,6 +364,7 @@ func _juice_pop(e: Node2D):
 	spray.aim = Vector2(_dir * 0.3, -1.0).normalized()
 	spray.power = 1.4
 	spray.floor_y = e.global_position.y + 2.0
+	spray.check_ground = true                       # (a Mango up on a rock pillar: no puddles in mid-air)
 	spray.position = get_parent().to_local(e.global_position + Vector2(0, -8))
 	get_parent().add_child(spray)
 	_pops.append([e.global_position - global_position + Vector2(0, -34), 0.0])

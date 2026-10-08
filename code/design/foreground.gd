@@ -39,6 +39,7 @@ const Z := 20
 @export var from_x := 0.0
 @export var to_x := 12000.0
 @export var layout_seed := 1            # a different number gives a different layout
+@export var keep_clear: Array[Vector2] = []   # x ranges (from, to) where nothing's put (a sign to read): pushed past
 
 var player: Node2D = null
 var _pieces: Array = []                 # each: [Sprite2D, anchor x, "bottom" / "top" / "trunk", art offset, solid rects, art size]
@@ -62,6 +63,9 @@ func _ready():
 func _scatter(rng: RandomNumberGenerator, names: Array, kind: String, every: Vector2):
 	var x := from_x + rng.randf_range(0.0, every.y)
 	while x < to_x:
+		for r: Vector2 in keep_clear:                 # (kept clear: pushed on past it)
+			if x >= r.x and x <= r.y:
+				x = r.y + rng.randf_range(0.0, every.x * 0.5)
 		var art: String = names[rng.randi() % names.size()]
 		var tall: Array = _tall_art(art)
 		var s := Sprite2D.new()

@@ -28,6 +28,8 @@
 [ext_resource type="Script" path="res://code/design/palm_bridge.gd" id="palm"]
 [ext_resource type="Script" path="res://code/design/melon_shark.gd" id="shark"]
 [ext_resource type="Script" path="res://code/design/waterfall.gd" id="falls"]
+[ext_resource type="Script" path="res://code/design/bar_intro.gd" id="barintro"]
+[ext_resource type="Script" path="res://code/design/placard.gd" id="placard"]
 
 [sub_resource type="RectangleShape2D" id="Rect_64x640"]
 size = Vector2(64.0, 640.0)
@@ -64,6 +66,9 @@ size = Vector2(840.0, 64.0)
 
 [sub_resource type="RectangleShape2D" id="Rect_460x64"]
 size = Vector2(460.0, 64.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_56x18"]
+size = Vector2(56, 18)
 
 [sub_resource type="RectangleShape2D" id="Rect_64x400"]
 size = Vector2(64.0, 400.0)
@@ -112,17 +117,45 @@ polygon = PackedVector2Array(-1024, -2048, 16024, -2048, 16024, 1024, -1024, 102
 
 [node name="KillZones" type="Node2D" parent="."]
 
+[node name="WallBar" type="StaticBody2D" parent="Level"]
+position = Vector2(108.0, -192.0)
+script = ExtResource("overhang")
+standing = true
+
+[node name="Shape" type="CollisionShape2D" parent="Level/WallBar"]
+shape = SubResource("Rect_64x640")
+
+[node name="Look" type="Polygon2D" parent="Level/WallBar"]
+color = Color(0.22, 0.25, 0.32, 1)
+polygon = PackedVector2Array(-32.0, -320.0, 32.0, -320.0, 32.0, 320.0, -32.0, 320.0)
+
+[node name="BoardBarStep" type="StaticBody2D" parent="Level"]
+position = Vector2(440.0, -9.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/BoardBarStep"]
+shape = SubResource("Rect_56x18")
+
+[node name="FloorBar" type="StaticBody2D" parent="Level"]
+position = Vector2(370.0, 32.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/FloorBar"]
+shape = SubResource("Rect_460x64")
+
+[node name="Look" type="Polygon2D" parent="Level/FloorBar"]
+color = Color(0.22, 0.25, 0.32, 1)
+polygon = PackedVector2Array(-230.0, -32.0, 230.0, -32.0, 230.0, 32.0, -230.0, 32.0)
+
 [node name="WallLeft" type="StaticBody2D" parent="Level"]
-position = Vector2(568.0, -192.0)
+position = Vector2(568.0, -312.0)
 script = ExtResource("overhang")
 standing = true
 
 [node name="Shape" type="CollisionShape2D" parent="Level/WallLeft"]
-shape = SubResource("Rect_64x640")
+shape = SubResource("Rect_64x400")
 
 [node name="Look" type="Polygon2D" parent="Level/WallLeft"]
 color = Color(0.22, 0.25, 0.32, 1)
-polygon = PackedVector2Array(-32.0, -320.0, 32.0, -320.0, 32.0, 320.0, -32.0, 320.0)
+polygon = PackedVector2Array(-32.0, -200.0, 32.0, -200.0, 32.0, 200.0, -32.0, 200.0)
 
 [node name="ShallowSurf" type="StaticBody2D" parent="Level"]
 position = Vector2(1580.0, 32.0)
@@ -133,6 +166,21 @@ shape = SubResource("Rect_1960x64")
 [node name="Look" type="Polygon2D" parent="Level/ShallowSurf"]
 color = Color(0.22, 0.25, 0.32, 1)
 polygon = PackedVector2Array(-980.0, -32.0, 980.0, -32.0, 980.0, 32.0, -980.0, 32.0)
+
+[node name="PlacardSurf" type="Node2D" parent="Hazards"]
+position = Vector2(760.0, 0.0)
+script = ExtResource("placard")
+picture = "surf_ride"
+
+[node name="PlacardQuicksand" type="Node2D" parent="Hazards"]
+position = Vector2(6215.0, 320.0)
+script = ExtResource("placard")
+picture = "quicksand"
+
+[node name="PlacardDrain" type="Node2D" parent="Hazards"]
+position = Vector2(9480.0, 0.0)
+script = ExtResource("placard")
+picture = "drain"
 
 [node name="SurfWave" type="Node2D" parent="Hazards"]
 position = Vector2(700.0, 0.0)
@@ -692,18 +740,29 @@ shape = SubResource("Rect_64x640")
 color = Color(0.22, 0.25, 0.32, 1)
 polygon = PackedVector2Array(-32.0, -320.0, 32.0, -320.0, 32.0, 320.0, -32.0, 320.0)
 
+[node name="GateIntro" type="StaticBody2D" parent="."]
+position = Vector2(568.0, 0.0)
+script = ExtResource("gate")
+start_open = true
+
+[node name="BarIntro" type="Node2D" parent="."]
+position = Vector2(430.0, 0.0)
+script = ExtResource("barintro")
+gate_path = NodePath("../GateIntro")
+
 [node name="Player" parent="." instance=ExtResource("player")]
-position = Vector2(696.0, -8.0)
+position = Vector2(440.0, -26.0)
 
 [node name="LevelDirector" type="Node2D" parent="."]
 script = ExtResource("level")
 level_number = 1
 level_name = "JUNGLE RUN"
 kill_y = 400.0
-rank_times = Vector3(195, 260, 350)
+rank_times = Vector3(60, 90, 120)
 boss_path = NodePath("../BossArena/Boss")
 boss_title = "PINA COLADA"
 final_title = "LEVEL CLEAR!"
+juice_clock = true
 
 [node name="LiveReload" type="Node" parent="."]
 script = ExtResource("live")
@@ -729,5 +788,6 @@ script = ExtResource("chargefx")
 
 [node name="Foreground" type="Node2D" parent="."]
 script = ExtResource("foreground")
-from_x = 0.0
+from_x = 620.0
+keep_clear = Array[Vector2]([Vector2(600, 960), Vector2(9380, 9580)])
 to_x = 14916.0

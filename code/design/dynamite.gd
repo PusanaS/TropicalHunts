@@ -15,6 +15,10 @@ extends Node2D
 enum Mode { WAITING, BURNING, FIZZING, BLOWN }
 
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
+const CinemaBars := preload("res://code/design/cinema_bars.gd")
+# a little arrow bouncing down at the wick's tip (Morgan's call, 2026-10-08: players got there and didn't know
+# what to do; the LIGHT THE FUSE! text over it was taken out, the arrow's enough). Drawn on the prompt layer so
+# the mine's darkness doesn't dim it; it fades once the fuse is lit.
 const Pixel := preload("res://code/design/pixel_font.gd")
 const STRIKE_SOUND := preload("res://sounds/sword/sword_hit_metal_01.wav")    # the blade sparks off the wick tip
 const STRIKE_SOUND_DB := -4.0
@@ -131,6 +135,11 @@ var _filled := false
 var _sizzle_t := 0.0
 var _slow_from := -1.0              # real time the slow motion started (-1: not running it)
 var _slam_hold := false             # the slow motion with the W / SLAM! prompt, as the slam opens up
+# you're held still from lighting the fuse till the blast (Morgan's call, 2026-10-08: walking or jumping out of
+# the blast's reach during the burn broke the throw), with the cinema bars on
+var _hold := false
+var _held := false
+var _sign_a := 1.0
 var _slam_held := false             # (it only happens once)
 var _slam_hold_from := 0.0
 var _prompt: Node2D
@@ -262,6 +271,8 @@ func _physics_process(delta: float):
 		if player == null:
 			return
 		_names = player.get_script().State.keys()
+	_hold_player()
+	_sign_a = move_toward(_sign_a, 1.0 if _mode == Mode.WAITING else 0.0, delta * 4.0)
 	if _refling:
 		_refling = false
 		player.velocity = _launch_v + Vector2(0, player.get_gravity().y * delta)
@@ -307,6 +318,7 @@ func _physics_process(delta: float):
 						_fill()
 	queue_redraw()
 	_fx.queue_redraw()
+	_prompt.queue_redraw()
 
 
 func _set_mode(m: Mode):
@@ -330,6 +342,7 @@ func _check_hit():
 
 func _ignite():
 	_set_mode(Mode.BURNING)
+	_hold = true                                               # stay put till it blows
 	_burned = 0.0
 	_strike_sound.play()
 	EnemyKit.hitstop(get_tree(), 0.05)
@@ -337,7 +350,34 @@ func _ignite():
 		var dir := Vector2(-randf_range(0.3, 1.0), -randf_range(-0.4, 1.0)).normalized()
 		_spark(TIP, dir * randf_range(90.0, 280.0), randf_range(0.25, 0.5))
 	_spark_light.enabled = true
-	get_tree().call_group("level_hud", "toast", "IT'S LIT!")
+
+
+# held still: once you're on the ground, your controls stop (your physics is paused) and you stand idle, safe,
+# with the cinema bars on, until the blast lets you go
+func _hold_player():
+	if _held:
+		EnemyKit.protect_player(0.3)
+		return
+	if not _hold or not player.is_on_floor():
+		return
+	_held = true
+	player.velocity = Vector2.ZERO
+	player.speed_level = 0
+	player.hold_time = 0.0
+	var states: Dictionary = player.get_script().State
+	player._set_state(states["IDLE"])
+	player.set_physics_process(false)
+	EnemyKit.protect_player(0.3)
+	CinemaBars.set_on(get_tree(), true)
+
+
+func _release_player():
+	_hold = false
+	if _held and is_instance_valid(player):
+		player.set_physics_process(true)
+	if _held:
+		CinemaBars.set_on(get_tree(), false)
+	_held = false
 
 
 func _spark(at: Vector2, vel: Vector2, life: float):
@@ -347,6 +387,7 @@ func _spark(at: Vector2, vel: Vector2, life: float):
 # ---------- the blast ----------
 func _blast():
 	_set_mode(Mode.BLOWN)
+	_release_player()                                          # you're free again: the throw takes you from here
 	_blast_t = _t
 	for b: StaticBody2D in _plugs:                             # the ground above opens up
 		b.queue_free()
@@ -625,6 +666,7 @@ func _process(_delta: float):
 
 
 func _exit_tree():
+	_release_player()
 	if _slow_from >= 0.0 or _slam_hold:   # removed mid-slow-motion (scene reload): never leave the game slowed
 		Engine.time_scale = 1.0
 	if _pound != 0 and is_instance_valid(player):   # removed mid-pound: give the player back
@@ -699,6 +741,8 @@ func _pound_impact(dir: float):
 
 # a big W key over your head, acting out the press, with SLAM! under it (like the dam's Q / COUNTER!)
 func _draw_prompt():
+	if _sign_a > 0.0:
+		_draw_sign()
 	if not _slam_hold or player == null:
 		return
 	var t := _real()
@@ -710,6 +754,24 @@ func _draw_prompt():
 	Pixel.draw_key(_prompt, Vector2.ZERO, 13, "W", fmod(t, 0.4) < 0.15, true)
 	_prompt.draw_set_transform(Vector2.ZERO)
 	Pixel.draw_cells(_prompt, Pixel.cells("SLAM!", Vector2(roundf(feet.x - text_w / 2.0), text_y), 2), PROMPT)
+
+
+# a little arrow bouncing down at the wick's tip (screen space)
+func _draw_sign():
+	var xf := get_viewport().get_canvas_transform()
+	var a := _sign_a
+	var tip := (xf * (global_position + TIP)).round()
+	var drop := roundf(absf(sin(_real() * 5.0)) * 3.0)
+	var ax := tip.x
+	var ay := tip.y - 16.0 + drop
+	for row in 4:
+		var half := 3.0 - row
+		_prompt.draw_rect(Rect2(ax - half - 1.0, ay + row - 1.0, half * 2.0 + 3.0, 3), Color(Pixel.INK, a))
+	_prompt.draw_rect(Rect2(ax - 2.0, ay - 6.0, 5, 7), Color(Pixel.INK, a))
+	_prompt.draw_rect(Rect2(ax - 1.0, ay - 5.0, 3, 6), Color(Pixel.MUSTARD, a))
+	for row in 4:
+		var half := 3.0 - row
+		_prompt.draw_rect(Rect2(ax - half, ay + row, half * 2.0 + 1.0, 1), Color(Pixel.MUSTARD, a))
 
 
 # ---------- drawing: the stash, the wick and the props (behind the player) ----------

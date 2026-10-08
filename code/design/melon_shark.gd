@@ -29,6 +29,7 @@ extends Node2D
 @export var max_hp := 3
 
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
+const NoDamagePop := preload("res://code/design/no_damage_pop.gd")
 const FruitMinion := preload("res://code/design/fruit_minion.gd")
 const JuiceSpray := preload("res://code/design/juice_spray.gd")
 const Pixel := preload("res://code/design/pixel_font.gd")
@@ -473,6 +474,8 @@ func _check_player_hits():
 		return
 	_swing = swing
 	var light := damage < 3                       # Q (and the light slam): it clangs off the rind
+	if not light and state != S.STRANDED:         # a W does nothing either while it's in its water (no pop for
+		_no_damage(global_position.y)             # take_hit: the drain's wall shouldn't say it)
 	_hit(damage, push, light, light)
 
 
@@ -521,9 +524,17 @@ func _hit(damage: int, push: Vector2, light: bool, clang: bool):
 func _clang(at: Vector2):
 	_armor_sound.pitch_scale = randf_range(0.95, 1.08)
 	_armor_sound.play(ARMOR_SKIP)
+	_no_damage(at.y)
 	_flash = maxf(_flash, 0.5)
 	for i in 10:
 		_sparks.append([at - global_position, Vector2(randf_range(-160.0, 160.0), -randf_range(40.0, 200.0)), randf_range(0.15, 0.35)])
+
+
+# the grey pop over it: IMMUNE IN WATER while it's in its water (so you know to drain it; Morgan's call), the usual
+# NO DAMAGE once it's stranded (a Q)
+func _no_damage(at_y: float):
+	var text := NoDamagePop.TEXT if state == S.STRANDED else "IMMUNE IN WATER"
+	NoDamagePop.show_on(self, Vector2(global_position.x, minf(at_y, global_position.y) - 30.0), text)
 
 
 # the flash only goes for it once it's stranded

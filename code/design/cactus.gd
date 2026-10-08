@@ -61,6 +61,7 @@ const PAN_MAX := 225.0                          # the most it slides: you stay o
 const FAR_MAX := 1000.0                         # (following the palm, it goes as far as it needs, you off screen)
 const PAN_EASE := 6.0
 const JuiceSpray := preload("res://code/design/juice_spray.gd")
+const CinemaBars := preload("res://code/design/cinema_bars.gd")
 const POP_LIFE := 0.9                           # a "+1" floats up this long (game time)
 const POP_COLORS := [Pixel.ORANGE, Pixel.RUST, Pixel.MUSTARD]
 const SPIKE_PUSH := Vector2(140, -180)
@@ -96,6 +97,12 @@ static var _chain_dir := 1.0
 static var _front := 0.0                        # the latest cactus to burst (x)
 static var _last_burst := 0.0                   # (real time)
 static var _far := false                        # following the palm (chain_follow): no PAN_MAX, no lead
+# you're held still from the moment the chain starts till the palm comes down (Morgan's call, 2026-10-08), so
+# you watch it all. The palm lets go (release_player()); so does the chain ending, and FREEZE_MAX at most.
+const FREEZE_MAX := 15.0                        # (real seconds)
+static var _hold := false
+var _held := false                              # (the chain's first cactus) it has you stopped right now
+var _hold_since := 0.0
 var _pan := 0.0
 var _cam: Camera2D = null
 var _cam_x := 0.0
@@ -250,6 +257,8 @@ func _shatter(dir: float):
 		_far = false
 		_front = global_position.x
 		_last_real = _real()
+		_hold = true                            # ...and holds you still till the palm's down
+		_hold_since = _last_real
 	elif (global_position.x - _front) * _chain_dir > 0.0:
 		_front = global_position.x
 	_last_burst = _real()
@@ -392,6 +401,7 @@ func _juice_pop(e: Node2D, dir: float):
 	spray.aim = Vector2(dir, -0.9).normalized()
 	spray.power = 1.2
 	spray.floor_y = e.global_position.y + 2.0
+	spray.check_ground = true                       # (a Mango up on a rock pillar: no puddles in mid-air)
 	spray.position = get_parent().to_local(e.global_position + Vector2(0, -12))
 	get_parent().add_child(spray)
 	_pops.append([to_local(e.global_position + Vector2(0, -34)), 0.0])
@@ -417,6 +427,7 @@ func _process(_delta: float):
 		if _cam == null:
 			return
 		_cam_x = _cam.position.x
+	_hold_player(now)
 	var holding := now - _last_burst < CHAIN_HOLD
 	var target := 0.0
 	if holding:
@@ -431,6 +442,39 @@ func _process(_delta: float):
 	_cam.position.x = _cam_x + roundf(_pan)
 	if not holding and absf(_pan) < 0.5 and Engine.time_scale >= 1.0:
 		_end_chain()
+
+
+# held still: once you're on the ground, your controls stop (your physics is paused, as in the counter) and you
+# stand idle, safe from anything that comes at you. Let go when release_player() (or FREEZE_MAX) says so.
+func _hold_player(now: float):
+	if _hold and now - _hold_since > FREEZE_MAX:
+		_hold = false
+	if _hold and not _held and player.is_on_floor():
+		_held = true
+		player.velocity = Vector2.ZERO
+		player.speed_level = 0
+		player.hold_time = 0.0
+		var states: Dictionary = player.get_script().State
+		player._set_state(states["IDLE"])
+		player.set_physics_process(false)
+		CinemaBars.set_on(get_tree(), true)          # a cutscene now: the black bars slide in
+	elif _held and not _hold:
+		_let_go()
+	if _held:
+		EnemyKit.protect_player(0.3)
+
+
+func _let_go():
+	if _held and player and is_instance_valid(player):
+		player.set_physics_process(true)
+	if _held:
+		CinemaBars.set_on(get_tree(), false)
+	_held = false
+
+
+# the palm's down (palm_bridge.gd): you can move again
+static func release_player():
+	_hold = false
 
 
 # the view follows x (world), however far from you that takes it, and the slow motion holds: the volley flying
@@ -448,6 +492,8 @@ func _end_chain():
 		Engine.time_scale = 1.0
 	_chain_owner = null
 	_far = false
+	_hold = false
+	_let_go()
 
 
 func _exit_tree():

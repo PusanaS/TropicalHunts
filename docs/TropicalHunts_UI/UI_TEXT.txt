@@ -1,0 +1,63 @@
+TROPICAL HUNTS: every piece of on-screen text (tutorial + level 1), 2026-10-08
+The screenshots are 1920x1080: the game is 480x270 pixels scaled up 4x. All text is a hand-made 5x7 pixel font
+(capitals only, plus a lower-case "s"), drawn in BOOM's palette. {Braces} below = the highlighted (yellow) word.
+
+TUTORIAL (folder 1)
+  Intro banner:        TUTORIAL / LEARN EVERY MOVE, ONE AT A TIME
+  Station titles:      01 MOVE, 02 JUMP, 03 DOUBLE JUMP, 04 SLASH, 05 SMASH, 06 CHARGED SMASH, 07 COUNTER,
+                       08 THUNDERCLAP FLASH  (slam in big in the middle, then shrink to the top)
+  Key band (bottom):   arrow keys / SPACE / SPACE THEN SPACE / Q OR HOLD Q / W / W + charge meter / Q / double-tap →
+  Clear words:         NICE!, CLEAR!, GREAT!, JUICY!, CLEAR!, BOOM!, PERFECT!, LIGHTNING!   (then GO >>> top right)
+  Tips (wrong move):   STAND STILL AND PRESS {Q}
+                       STAND STILL AND PRESS {W}
+                       HOLD {W} DOWN UNTIL IT BLASTS
+                       ALMOST! STAND ON THE COLUMN AND HOLD {W} LONGER
+                       TOO EARLY! WAIT FOR THE LUNGE, THEN PRESS {Q}
+                       TOO LATE! PRESS {Q} WHILE IT'S IN THE AIR
+                       DON'T ATTACK: GALLOP INTO THEM
+                       OUCH! LET GO TO STOP BEFORE YOU HIT A WALL
+  In the world:        STAND HERE (arrow) -> NOW HOLD {W} (green), "!" over the Mango, NOW! + Q key
+  Finale:              TUTORIAL COMPLETE! / NOW GO HUNT SOME FRUIT! / PRESS {ENTER} FOR LEVEL 1 (not in the shots)
+
+LEVEL HUD (folder 2)
+  Level title:         LEVEL 1 / JUNGLE RUN
+  Juice clock:         20.0 counting down (top centre), +1s / +3s (green), -5s (red), red pulse under 10s
+  Toasts:              CHECKPOINT!   OOPS!   OUT OF JUICE!
+  Over enemies:        NO DAMAGE   IMMUNE IN WATER   (grey)
+  Boss:                PINA COLADA (name slam, then name + health bar)
+  Fail card:           THANKS FOR PLAYING! / PRESS {ENTER} TO TRY AGAIN
+  Level clear:         LEVEL CLEAR! / TIME 1:23.4 / RANK S (or A, B, C) / THANKS FOR PLAYING!
+                       (other levels: THE END! ... PRESS {ENTER} TO CONTINUE)
+
+COMBO AND COUNTER (folder 3)
+  Combo counter:       N HITS, ranks NICE (5), GREAT (10), JUICY! (20), TROPICAL!! (35), FRESH SQUEEZED (50)
+  Counter:             COUNTER! with X2, X3 ... under it
+  Prompts:             Q key + COUNTER! (the dam flood), W key + SLAM! (the dynamite throw)
+  Kills:               +1 (small, over Mangos killed by cactus spikes / the palm)
+
+DIALOGUE (folder 4): speech bubbles, her = orange line, you = teal line
+  Opening
+    HER: HEY! I'M REALLY FEELING LIKE A {PINA COLADA} RIGHT NOW.
+    HER: IT WOULD BE SO NICE IF YOU COULD DO THAT FOR ME ♥
+    YOU: WELL... I'M OUT OF STOCK. BUT FOR YOU... I'LL SEE WHAT I CAN DO.
+    HER: OH THANK YOU SWEETIE! I KNEW YOU'D BE A DARLING. BUT MAKE IT FAST, I'M SO THIRSTY!
+    HER: ...SO I'M WILLING TO WAIT ABOUT 20 SECONDS.   (the 20 is red, shakes, then flies up to become the clock)
+    YOU: I NEED TO GO FIGHT... UHH, I MEAN... *FIND* THE RIGHT JUICES.
+    YOU: I'LL BE RIGHT BACK
+  Out of juice
+    YOU: SORRY... I RAN OUT OF JUICE. I COULDN'T DO IT.
+    HER: AWW... AND I WAS SO THIRSTY, TOO...
+    HER: BUT HEY, THESE THINGS HAPPEN IN LIFE. WANT TO TRY AGAIN?
+    (choice)  YES / NO
+    YES -> HER: YAY! GO GET 'EM, TIGER! ♥
+    NO  -> HER: OH... OKAY. I'LL COME BACK ANOTHER TIME, SWEETIE.
+  Win
+    YOU: ONE {PINA COLADA}, FRESHLY SQUEEZED!
+    HER: MMM... IT'S GREAT! YOU'RE AWESOME, SWEETIE ♥
+    YOU: OH, IT WAS NOTHING... *TOTALLY* NOTHING.
+
+SIGNS IN THE WORLD (folder 5)
+  TIKI BAR (the bar's sign)
+  Barricades:          KEEP OUT, DANGER, MINE CLOSED, STAY AWAY   (yellow and black)
+  Mine:                MINE (over the tunnel), DANGER (dead-end wall), TNT (crate)
+  Pictogram signs (no words): surf run, quicksand warning, shark (drain the water)

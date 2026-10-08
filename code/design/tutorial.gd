@@ -7,7 +7,7 @@ extends Node2D
 #   Goal*    Marker2D: a flag to stand at (metadata "reach" = how close, in pixels)
 #   Target*  training dummies (tutorial_target.gd): every hit is reported through the "tutorial" group
 #   Mango*   fruit minions (the counter and the final test)
-#   Spot     Marker2D: a glowing pad where to stand
+#   Spot     Marker2D: where to stand (the STAND HERE arrow points at it; CHARGED SMASH: on top of its column)
 #   Gate     the way out
 # Start anywhere: stations left of where the player starts count as done. So LiveReload keeps your place,
 # and moving the Player in the scene lets you test one station.
@@ -34,8 +34,6 @@ const SPOT_REACH := 14.0         # standing this close to a Spot counts as on it
 # keys: what the card's key caps act out. press = when each key goes down in the loop (seconds), so
 # keys can play one after the other. A "meter" shows the real build-up while you hold the key.
 func _make_steps() -> Array:
-	var all_keys := [_key("LEFT", _tap(0.0)), _key("RIGHT", _tap(0.3)), _key("SPACE", _tap(0.7)),
-		_key("Q", _tap(1.1)), _key("W", _tap(1.5))]
 	return [
 		_step("Move", "move", "MOVE", [_key("LEFT", _tap(0.0)), _key("RIGHT", _tap(0.6))], 1.2,
 			"USE THE {ARROW KEYS} TO WALK.\nWALK OVER TO THE FLAG.", 1, "NICE!"),
@@ -43,39 +41,28 @@ func _make_steps() -> Array:
 			"PRESS {SPACE} TO JUMP. HOLD IT TO JUMP HIGHER.\nJUMP UP TO THE FLAG.", 1, "CLEAR!"),
 		_step("DoubleJump", "double_jump", "DOUBLE JUMP", [_key("SPACE", _tap(0.0)), _sep("THEN"), _key("SPACE", _tap(0.4))], 1.4,
 			"JUMP, THEN PRESS {SPACE} AGAIN IN THE AIR.\nGET UP ONTO THE TALL LEDGE.", 1, "GREAT!"),
-		# double tap = gallop straight away (player.gd's debug_tap_gallop, Morgan's call). Its way out is the
-		# gym's breakable gate (gallop_only): galloping through it, in slow motion, clears the station.
-		_step("DoubleTap", "tap", "DOUBLE TAP", [_key("RIGHT", _tap_hold(0.0, 0.9))], 1.6,
-			"TAP A DIRECTION TWICE TO GALLOP STRAIGHT AWAY.\nGALLOP INTO THE GATE TO SMASH RIGHT THROUGH IT!", 1, "SMASHED!"),
+		# DOUBLE TAP (station 4, galloping through a breakable gate) was taken out (Morgan's call, 2026-10-08): the
+		# gallop is first yours at THUNDERCLAP FLASH, which teaches the double tap
 		_step("Slash", "light", "SLASH", [_key("Q", _tap(0.0)), _sep("OR HOLD"), _key("Q", _hold(0.0, 0.8))], 1.2,
-			"PRESS {Q} TO SLASH. HOLD {Q} TO KEEP SLASHING.\nHIT THE DUMMY 6 TIMES.", 6, "JUICY!",
+			"PRESS {Q} TO SLASH. HOLD {Q} TO KEEP SLASHING.\nHIT THE DUMMY 3 TIMES.", 3, "JUICY!",   # (was 6, Morgan's call)
 			{"wrong": "STAND STILL AND PRESS {Q}", "break": "cut"}),
 		_step("Smash", "heavy", "SMASH", [_key("W", _tap(0.0))], 1.2,
 			"PRESS {W} FOR A HEAVY SMASH.\nSMASH THE DUMMY 3 TIMES.", 3, "CLEAR!",
 			{"wrong": "STAND STILL AND PRESS {W}", "break": "smash"}),
 		_step("Charge", "charge", "CHARGED SMASH", [_key("W", _hold(0.1, 0.6), {"meter": "charge"})], 1.4,
-			"HOLD {W}: IT CHARGES UP, THEN BLASTS ALL AROUND.\nSTAND ON THE SPOT AND HIT ALL 3 DUMMIES AT ONCE.", 3, "BOOM!",
+			"HOLD {W}: IT CHARGES UP, THEN BLASTS ALL AROUND.\nSTAND ON THE COLUMN AND HIT ALL 3 DUMMIES AT ONCE.", 3, "BOOM!",
 			{"wrong": "HOLD {W} DOWN UNTIL IT BLASTS"}),
-		_step("RollingSlash", "dash_q", "ROLLING SLASH", [_key("RIGHT", _double(0.0)), _sep("THEN"), _key("Q", _tap(0.55))], 1.4,
-			"WHILE GALLOPING, PRESS {Q} TO ROLL AND SLASH.\nROLL THROUGH BOTH DUMMIES IN ONE GO.", 2, "SMOOTH!",
-			{"wrong": "DOUBLE TAP FIRST, THEN PRESS {Q}"}),
-		_step("LeapSlam", "dash_w", "LEAP SLAM", [_key("RIGHT", _double(0.0)), _sep("THEN"), _key("W", _tap(0.55))], 1.4,
-			"WHILE GALLOPING, PRESS {W} TO LEAP AND SLAM DOWN.\nCATCH BOTH DUMMIES.", 2, "CRUSHED!",
-			{"wrong": "DOUBLE TAP FIRST, THEN PRESS {W}"}),
-		_step("AirSlash", "air_q", "AIR SLASH", [_key("SPACE", _tap(0.0)), _sep("THEN"), _key("Q", _tap(0.35))], 1.2,
-			"JUMP, THEN PRESS {Q} TO SLASH IN THE AIR.\nHIT THE HANGING DUMMY TWICE.", 2, "SNAP!", {"break": "snap"}),
-		_step("AirSlam", "air_w", "AIR SLAM", [_key("SPACE", _tap(0.0)), _sep("THEN"), _key("W", _tap(0.35))], 1.2,
-			"JUMP, THEN PRESS {W} TO SLAM STRAIGHT DOWN.\nHIT BOTH DUMMIES.", 2, "GREAT!",
-			{"wrong": "JUMP FIRST, THEN PRESS {W}"}),
+		# ROLLING SLASH, LEAP SLAM, AIR SLASH and AIR SLAM (stations 8-11) were taken out (Morgan's call, 2026-10-08);
+		# their checks ("dash_q", "dash_w", "air_q", "air_w") are still in target_hit(), unused, if they come back
 		_step("Counter", "counter", "COUNTER", [_key("Q", _tap(0.0))], 1.2,
 			"WHEN THE MANGO LUNGES AT YOU, PRESS {Q}.\nDON'T HIT IT FIRST: WAIT FOR THE LUNGE.", 1, "PERFECT!"),
-		# after the flash you come out still galloping: the final arena is next, so that's fine
+		# the last station (Morgan's call, 2026-10-08: FINAL TEST was taken out), so clearing it ends the tutorial.
+		# 6 dummies, 50px apart (doubled, Morgan's call): one flash reaches 240px, so it takes about 3, and you come
+		# out still galloping straight into a second flash for the rest. Each one breaks ("cut") as its hit lands.
 		# the only dummies that can be flashed (flashable): the others play dead to the flash
 		_step("Flash", "flash", "THUNDERCLAP FLASH", [_key("RIGHT", _tap_hold(0.0, 1.0))], 1.6,
-			"GALLOP INTO ENEMIES TO FLASH STRAIGHT THROUGH THEM.\nDOUBLE TAP {→} AND RUN AT THE DUMMIES.", 3, "LIGHTNING!",
+			"GALLOP INTO ENEMIES TO FLASH STRAIGHT THROUGH THEM.\nDOUBLE TAP {→} AND RUN AT THE DUMMIES.", 6, "LIGHTNING!",
 			{"wrong": "DON'T ATTACK: GALLOP INTO THEM"}),
-		_step("Final", "finale", "FINAL TEST", all_keys, 2.0,
-			"USE EVERYTHING YOU LEARNED.\nPOP ALL 3 MANGOS.", 3, ""),
 	]
 
 
@@ -163,7 +150,7 @@ func _ready():
 	_front.draw.connect(_draw_front)
 	add_child(_front)
 	get_parent().child_entered_tree.connect(_on_node_added)
-	for i in _stations.size():               # a breakable gate (DOUBLE TAP): smashing it clears its station
+	for i in _stations.size():               # a breakable gate (DOUBLE TAP had one, now gone): smashing it clears its station
 		var gate = _stations[i].get_node_or_null("Gate")
 		if gate and gate.has_signal("shattered"):
 			gate.shattered.connect(_on_gate_smashed.bind(i))
@@ -200,12 +187,13 @@ func _physics_process(_delta):
 	_check_step()
 
 
-# moves aren't there until their station: no double jump before DOUBLE JUMP, no gallop before DOUBLE TAP. It holds down two of player.gd's own variables after the
+# moves aren't there until their station: no double jump before DOUBLE JUMP, no gallop before THUNDERCLAP FLASH
+# (Morgan's call, 2026-10-08; it was DOUBLE TAP's, which was taken out). It holds down two of player.gd's own variables after the
 # player moves each frame, so player.gd itself is untouched.
 func _apply_locks():
 	if not _taught("double_jump"):
 		player.air_jumps_left = 0                   # refilled on the ground, emptied again as soon as you're up
-	if not _taught("tap"):
+	if not _taught("flash"):
 		# the hold timer stops short of the gallop, so holding a direction tops out at the sprint
 		player.hold_time = minf(player.hold_time, _time_to_gallop - 0.2)
 		if player.speed_level >= _top_level:      # a double tap jumps straight to it: make that a sprint
@@ -387,6 +375,7 @@ func target_hit(target: Node2D, move: String):
 				return
 			if ok:
 				_reached[target] = true
+				target.break_off("cut")       # every dummy the flash gets breaks, as its hit lands (Morgan's call)
 	if ok:
 		_last_target = target
 		_progress(target.global_position + Vector2(0, -24))
@@ -407,7 +396,7 @@ func _resolve_blast():
 	else:
 		for p in where:
 			hud.add_progress(p)
-		hud.fail("ALMOST! STAND ON THE SPOT AND HOLD {W} LONGER")
+		hud.fail("ALMOST! STAND ON THE COLUMN AND HOLD {W} LONGER")
 
 
 func _on_gate_smashed(i: int):
@@ -468,10 +457,6 @@ func _draw_back():
 		for g in _stations[i].get_children():
 			if g is Marker2D and g.name.begins_with("Goal"):
 				_draw_flag(g.global_position, i < _index or (i == _index and _reached.has(g)), t)
-	if _entered:
-		var spot = _stations[_index].get_node_or_null("Spot")
-		if spot:
-			_draw_spot(spot.global_position, t)
  
 
 # arrows bob over whatever is still to do; the counter's mango gets a warning, then a Q to press
@@ -518,18 +503,6 @@ func _on_spot(at: Vector2) -> bool:
 
 
 # a glowing pad on the floor (green while you stand on it)
-func _draw_spot(at: Vector2, t: float):
-	var on := _on_spot(at)
-	var pulse := 1.0 if on else 0.5 + 0.5 * sin(t * 5.0)
-	var w := 30.0 + roundf(pulse * 4.0)
-	var x := roundf(at.x - w / 2.0)
-	var fill := Pixel.GREEN if on else Pixel.MUSTARD
-	_back.draw_rect(Rect2(x - 1, at.y - 3, w + 2, 3), Color(Pixel.INK, 0.6))
-	_back.draw_rect(Rect2(x, at.y - 2, w, 2), Color(fill, 0.6 + 0.4 * pulse))
-	_back.draw_rect(Rect2(x + 4, at.y - 4, w - 8, 2), Color(Pixel.INK, 0.6))
-	_back.draw_rect(Rect2(x + 5, at.y - 3, w - 10, 1), Color(Pixel.OFF_WHITE, 0.5 + 0.5 * pulse))
-
-
 # a big arrow bobbing down at the spot, just over head height, with STAND HERE over it. Once you're on
 # it, both go green and it tells you what to do next.
 func _draw_stand_here(at: Vector2, t: float):

@@ -34,6 +34,9 @@ const T_BAND := 1.15             # ...the dark band opens at the bottom...
 const T_KEYS := 1.25             # ...the keys rise into it...
 const T_HINT := 1.35             # ...the hint ripples in under them...
 const T_PIPS := 1.4              # ...and the progress pips pop in under the title
+# the hint lines under the keys (each step's "hint" in tutorial.gd) are hidden (Morgan's call, 2026-10-08: the
+# playtesters never read them): the band shows just the keys. true brings them back.
+const SHOW_HINTS := false
 
 const TITLE_TOP := 8.0           # the title's top edge once it's up
 const INTRO_Y := 0.36            # where it first slams in (share of the screen height)
@@ -129,13 +132,17 @@ func show_card(step: Dictionary, number: int, total: int):
 	_keys_w = 0.0
 	for i in keys.size():
 		_keys_w += _item_width(keys[i]) + (KEY_GAP if i > 0 else 0.0)
-	var hint: String = step["hint"]
-	var lines := hint.split("\n")
-	var hint_w := 0.0
-	for line in lines:
-		hint_w = maxf(hint_w, Pixel.width(line, 1))
-	_band_w = maxf(maxf(_keys_w, hint_w) + 32.0, 160.0)
-	_band_h = 5.0 + Pixel.KEY_H + 7.0 + lines.size() * 10.0 - 3.0 + 6.0
+	if SHOW_HINTS:
+		var hint: String = step["hint"]
+		var lines := hint.split("\n")
+		var hint_w := 0.0
+		for line in lines:
+			hint_w = maxf(hint_w, Pixel.width(line, 1))
+		_band_w = maxf(maxf(_keys_w, hint_w) + 32.0, 160.0)
+		_band_h = 5.0 + Pixel.KEY_H + 7.0 + lines.size() * 10.0 - 3.0 + 6.0
+	else:                                         # just the keys
+		_band_w = maxf(_keys_w + 32.0, 96.0)
+		_band_h = 5.0 + Pixel.KEY_H + 5.0
 
 
 func add_progress(world_pos: Vector2):
@@ -545,7 +552,8 @@ func _draw_band(screen: Vector2):
 	var a := clampf(1.0 - fold * 4.0, 0.0, 1.0)
 	if a > 0.0:
 		_draw_keys(screen, by, age, a)
-		_draw_hint(screen, by, age, a)
+		if SHOW_HINTS:
+			_draw_hint(screen, by, age, a)
 
 
 # the keys act out their presses on a loop; a real press shows instead (lit) and pauses the act a moment

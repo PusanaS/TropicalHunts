@@ -11,7 +11,7 @@
 [ext_resource type="Script" path="res://code/design/tutorial.gd" id="9_tutorial"]
 [ext_resource type="Script" path="res://code/design/tutorial_gate.gd" id="10_gate"]
 [ext_resource type="Script" path="res://code/design/tutorial_target.gd" id="11_target"]
-[ext_resource type="Script" path="res://code/design/breakable_door.gd" id="12_door"]
+[ext_resource type="Script" path="res://code/design/rock_pillar.gd" id="13_pillar"]
 
 [sub_resource type="RectangleShape2D" id="Rect_64x640"]
 size = Vector2(64, 640)
@@ -62,18 +62,18 @@ shape = SubResource("Rect_1984x64")
 color = Color(0.22, 0.25, 0.32, 1)
 polygon = PackedVector2Array(-992, -32, 992, -32, 992, 32, -992, 32)
 
-[node name="FloorRun" type="StaticBody2D" parent="Level"]
-position = Vector2(2912, 32)
+[node name="FloorSlash" type="StaticBody2D" parent="Level"]
+position = Vector2(2144, 32)
 
-[node name="Shape" type="CollisionShape2D" parent="Level/FloorRun"]
-shape = SubResource("Rect_1984x64")
+[node name="Shape" type="CollisionShape2D" parent="Level/FloorSlash"]
+shape = SubResource("Rect_448x64")
 
-[node name="Look" type="Polygon2D" parent="Level/FloorRun"]
+[node name="Look" type="Polygon2D" parent="Level/FloorSlash"]
 color = Color(0.22, 0.25, 0.32, 1)
-polygon = PackedVector2Array(-992, -32, 992, -32, 992, 32, -992, 32)
+polygon = PackedVector2Array(-224, -32, 224, -32, 224, 32, -224, 32)
 
 [node name="FloorSmash" type="StaticBody2D" parent="Level"]
-position = Vector2(4128, 32)
+position = Vector2(2592, 32)
 
 [node name="Shape" type="CollisionShape2D" parent="Level/FloorSmash"]
 shape = SubResource("Rect_448x64")
@@ -83,7 +83,7 @@ color = Color(0.22, 0.25, 0.32, 1)
 polygon = PackedVector2Array(-224, -32, 224, -32, 224, 32, -224, 32)
 
 [node name="FloorCharge" type="StaticBody2D" parent="Level"]
-position = Vector2(4576, 32)
+position = Vector2(3040, 32)
 
 [node name="Shape" type="CollisionShape2D" parent="Level/FloorCharge"]
 shape = SubResource("Rect_448x64")
@@ -92,48 +92,8 @@ shape = SubResource("Rect_448x64")
 color = Color(0.22, 0.25, 0.32, 1)
 polygon = PackedVector2Array(-224, -32, 224, -32, 224, 32, -224, 32)
 
-[node name="FloorRollingSlash" type="StaticBody2D" parent="Level"]
-position = Vector2(5024, 32)
-
-[node name="Shape" type="CollisionShape2D" parent="Level/FloorRollingSlash"]
-shape = SubResource("Rect_448x64")
-
-[node name="Look" type="Polygon2D" parent="Level/FloorRollingSlash"]
-color = Color(0.22, 0.25, 0.32, 1)
-polygon = PackedVector2Array(-224, -32, 224, -32, 224, 32, -224, 32)
-
-[node name="FloorLeapSlam" type="StaticBody2D" parent="Level"]
-position = Vector2(5472, 32)
-
-[node name="Shape" type="CollisionShape2D" parent="Level/FloorLeapSlam"]
-shape = SubResource("Rect_448x64")
-
-[node name="Look" type="Polygon2D" parent="Level/FloorLeapSlam"]
-color = Color(0.22, 0.25, 0.32, 1)
-polygon = PackedVector2Array(-224, -32, 224, -32, 224, 32, -224, 32)
-
-[node name="FloorAirSlash" type="StaticBody2D" parent="Level"]
-position = Vector2(5920, 32)
-
-[node name="Shape" type="CollisionShape2D" parent="Level/FloorAirSlash"]
-shape = SubResource("Rect_448x64")
-
-[node name="Look" type="Polygon2D" parent="Level/FloorAirSlash"]
-color = Color(0.22, 0.25, 0.32, 1)
-polygon = PackedVector2Array(-224, -32, 224, -32, 224, 32, -224, 32)
-
-[node name="FloorAirSlam" type="StaticBody2D" parent="Level"]
-position = Vector2(6368, 32)
-
-[node name="Shape" type="CollisionShape2D" parent="Level/FloorAirSlam"]
-shape = SubResource("Rect_448x64")
-
-[node name="Look" type="Polygon2D" parent="Level/FloorAirSlam"]
-color = Color(0.22, 0.25, 0.32, 1)
-polygon = PackedVector2Array(-224, -32, 224, -32, 224, 32, -224, 32)
-
 [node name="FloorEnd" type="StaticBody2D" parent="Level"]
-position = Vector2(8256, 32)
+position = Vector2(4928, 32)
 
 [node name="Shape" type="CollisionShape2D" parent="Level/FloorEnd"]
 shape = SubResource("Rect_3328x64")
@@ -143,7 +103,7 @@ color = Color(0.22, 0.25, 0.32, 1)
 polygon = PackedVector2Array(-1664, -32, 1664, -32, 1664, 32, -1664, 32)
 
 [node name="WallRight" type="StaticBody2D" parent="Level"]
-position = Vector2(9824, -192)
+position = Vector2(6496, -192)
 
 [node name="Shape" type="CollisionShape2D" parent="Level/WallRight"]
 shape = SubResource("Rect_64x640")
@@ -236,36 +196,18 @@ shape = SubResource("Rect_64x400")
 color = Color(0.22, 0.25, 0.32, 1)
 polygon = PackedVector2Array(-32, -200, 32, -200, 32, 200, -32, 200)
 
-[node name="DoubleTap" type="Node2D" parent="Stations"]
-
-[node name="Gate" type="StaticBody2D" parent="Stations/DoubleTap"]
-position = Vector2(2880, 0)
-script = ExtResource("12_door")
-reseal_time = 0.0
-gallop_only = true
-
-[node name="WallGate" type="StaticBody2D" parent="Stations/DoubleTap"]
-position = Vector2(2880, -312)
-
-[node name="Shape" type="CollisionShape2D" parent="Stations/DoubleTap/WallGate"]
-shape = SubResource("Rect_64x400")
-
-[node name="Look" type="Polygon2D" parent="Stations/DoubleTap/WallGate"]
-color = Color(0.22, 0.25, 0.32, 1)
-polygon = PackedVector2Array(-32, -200, 32, -200, 32, 200, -32, 200)
-
 [node name="Slash" type="Node2D" parent="Stations"]
 
 [node name="Target" type="Node2D" parent="Stations/Slash"]
-position = Vector2(3520, 0)
+position = Vector2(2162, 0)
 script = ExtResource("11_target")
 
 [node name="Gate" type="StaticBody2D" parent="Stations/Slash"]
-position = Vector2(3904, 0)
+position = Vector2(2368, 0)
 script = ExtResource("10_gate")
 
 [node name="WallGate" type="StaticBody2D" parent="Stations/Slash"]
-position = Vector2(3904, -312)
+position = Vector2(2368, -312)
 
 [node name="Shape" type="CollisionShape2D" parent="Stations/Slash/WallGate"]
 shape = SubResource("Rect_64x400")
@@ -277,15 +219,15 @@ polygon = PackedVector2Array(-32, -200, 32, -200, 32, 200, -32, 200)
 [node name="Smash" type="Node2D" parent="Stations"]
 
 [node name="Target" type="Node2D" parent="Stations/Smash"]
-position = Vector2(4146, 0)
+position = Vector2(2610, 0)
 script = ExtResource("11_target")
 
 [node name="Gate" type="StaticBody2D" parent="Stations/Smash"]
-position = Vector2(4352, 0)
+position = Vector2(2816, 0)
 script = ExtResource("10_gate")
 
 [node name="WallGate" type="StaticBody2D" parent="Stations/Smash"]
-position = Vector2(4352, -312)
+position = Vector2(2816, -312)
 
 [node name="Shape" type="CollisionShape2D" parent="Stations/Smash/WallGate"]
 shape = SubResource("Rect_64x400")
@@ -297,26 +239,31 @@ polygon = PackedVector2Array(-32, -200, 32, -200, 32, 200, -32, 200)
 [node name="Charge" type="Node2D" parent="Stations"]
 
 [node name="Spot" type="Marker2D" parent="Stations/Charge"]
-position = Vector2(4586, 0)
+position = Vector2(3050, -40)
+
+[node name="SandRockStop" type="StaticBody2D" parent="Stations/Charge"]
+position = Vector2(3050, 0)
+script = ExtResource("13_pillar")
+height = 40.0
 
 [node name="Target1" type="Node2D" parent="Stations/Charge"]
-position = Vector2(4436, 0)
+position = Vector2(2900, 0)
 script = ExtResource("11_target")
 
 [node name="Target2" type="Node2D" parent="Stations/Charge"]
-position = Vector2(4686, 0)
+position = Vector2(3150, 0)
 script = ExtResource("11_target")
 
 [node name="Target3" type="Node2D" parent="Stations/Charge"]
-position = Vector2(4736, 0)
+position = Vector2(3200, 0)
 script = ExtResource("11_target")
 
 [node name="Gate" type="StaticBody2D" parent="Stations/Charge"]
-position = Vector2(4800, 0)
+position = Vector2(3264, 0)
 script = ExtResource("10_gate")
 
 [node name="WallGate" type="StaticBody2D" parent="Stations/Charge"]
-position = Vector2(4800, -312)
+position = Vector2(3264, -312)
 
 [node name="Shape" type="CollisionShape2D" parent="Stations/Charge/WallGate"]
 shape = SubResource("Rect_64x400")
@@ -325,113 +272,19 @@ shape = SubResource("Rect_64x400")
 color = Color(0.22, 0.25, 0.32, 1)
 polygon = PackedVector2Array(-32, -200, 32, -200, 32, 200, -32, 200)
 
-[node name="RollingSlash" type="Node2D" parent="Stations"]
-
-[node name="Target1" type="Node2D" parent="Stations/RollingSlash"]
-position = Vector2(5056, 0)
-script = ExtResource("11_target")
-
-[node name="Target2" type="Node2D" parent="Stations/RollingSlash"]
-position = Vector2(5136, 0)
-script = ExtResource("11_target")
-
-[node name="Gate" type="StaticBody2D" parent="Stations/RollingSlash"]
-position = Vector2(5248, 0)
-script = ExtResource("10_gate")
-
-[node name="WallGate" type="StaticBody2D" parent="Stations/RollingSlash"]
-position = Vector2(5248, -312)
-
-[node name="Shape" type="CollisionShape2D" parent="Stations/RollingSlash/WallGate"]
-shape = SubResource("Rect_64x400")
-
-[node name="Look" type="Polygon2D" parent="Stations/RollingSlash/WallGate"]
-color = Color(0.22, 0.25, 0.32, 1)
-polygon = PackedVector2Array(-32, -200, 32, -200, 32, 200, -32, 200)
-
-[node name="LeapSlam" type="Node2D" parent="Stations"]
-
-[node name="Target1" type="Node2D" parent="Stations/LeapSlam"]
-position = Vector2(5546, 0)
-script = ExtResource("11_target")
-
-[node name="Target2" type="Node2D" parent="Stations/LeapSlam"]
-position = Vector2(5606, 0)
-script = ExtResource("11_target")
-
-[node name="Gate" type="StaticBody2D" parent="Stations/LeapSlam"]
-position = Vector2(5696, 0)
-script = ExtResource("10_gate")
-
-[node name="WallGate" type="StaticBody2D" parent="Stations/LeapSlam"]
-position = Vector2(5696, -312)
-
-[node name="Shape" type="CollisionShape2D" parent="Stations/LeapSlam/WallGate"]
-shape = SubResource("Rect_64x400")
-
-[node name="Look" type="Polygon2D" parent="Stations/LeapSlam/WallGate"]
-color = Color(0.22, 0.25, 0.32, 1)
-polygon = PackedVector2Array(-32, -200, 32, -200, 32, 200, -32, 200)
-
-[node name="AirSlash" type="Node2D" parent="Stations"]
-
-[node name="Target" type="Node2D" parent="Stations/AirSlash"]
-position = Vector2(5936, -64)
-script = ExtResource("11_target")
-hanging = true
-rope = 200.0
-
-[node name="Gate" type="StaticBody2D" parent="Stations/AirSlash"]
-position = Vector2(6144, 0)
-script = ExtResource("10_gate")
-
-[node name="WallGate" type="StaticBody2D" parent="Stations/AirSlash"]
-position = Vector2(6144, -312)
-
-[node name="Shape" type="CollisionShape2D" parent="Stations/AirSlash/WallGate"]
-shape = SubResource("Rect_64x400")
-
-[node name="Look" type="Polygon2D" parent="Stations/AirSlash/WallGate"]
-color = Color(0.22, 0.25, 0.32, 1)
-polygon = PackedVector2Array(-32, -200, 32, -200, 32, 200, -32, 200)
-
-[node name="AirSlam" type="Node2D" parent="Stations"]
-
-[node name="Target1" type="Node2D" parent="Stations/AirSlam"]
-position = Vector2(6336, 0)
-script = ExtResource("11_target")
-
-[node name="Target2" type="Node2D" parent="Stations/AirSlam"]
-position = Vector2(6416, 0)
-script = ExtResource("11_target")
-
-[node name="Gate" type="StaticBody2D" parent="Stations/AirSlam"]
-position = Vector2(6592, 0)
-script = ExtResource("10_gate")
-
-[node name="WallGate" type="StaticBody2D" parent="Stations/AirSlam"]
-position = Vector2(6592, -312)
-
-[node name="Shape" type="CollisionShape2D" parent="Stations/AirSlam/WallGate"]
-shape = SubResource("Rect_64x400")
-
-[node name="Look" type="Polygon2D" parent="Stations/AirSlam/WallGate"]
-color = Color(0.22, 0.25, 0.32, 1)
-polygon = PackedVector2Array(-32, -200, 32, -200, 32, 200, -32, 200)
-
 [node name="Counter" type="Node2D" parent="Stations"]
 
 [node name="Mango" parent="Stations/Counter" instance=ExtResource("3_fruit")]
-position = Vector2(6960, 0)
+position = Vector2(3632, 0)
 windup_time = 0.6
 patrol_range = 64.0
 
 [node name="Gate" type="StaticBody2D" parent="Stations/Counter"]
-position = Vector2(7232, 0)
+position = Vector2(3904, 0)
 script = ExtResource("10_gate")
 
 [node name="WallGate" type="StaticBody2D" parent="Stations/Counter"]
-position = Vector2(7232, -312)
+position = Vector2(3904, -312)
 
 [node name="Shape" type="CollisionShape2D" parent="Stations/Counter/WallGate"]
 shape = SubResource("Rect_64x400")
@@ -443,47 +296,34 @@ polygon = PackedVector2Array(-32, -200, 32, -200, 32, 200, -32, 200)
 [node name="Flash" type="Node2D" parent="Stations"]
 
 [node name="Target1" type="Node2D" parent="Stations/Flash"]
-position = Vector2(7808, 0)
+position = Vector2(4480, 0)
 script = ExtResource("11_target")
 flashable = true
 
 [node name="Target2" type="Node2D" parent="Stations/Flash"]
-position = Vector2(7858, 0)
+position = Vector2(4530, 0)
 script = ExtResource("11_target")
 flashable = true
 
 [node name="Target3" type="Node2D" parent="Stations/Flash"]
-position = Vector2(7908, 0)
+position = Vector2(4580, 0)
 script = ExtResource("11_target")
 flashable = true
 
-[node name="Gate" type="StaticBody2D" parent="Stations/Flash"]
-position = Vector2(8640, 0)
-script = ExtResource("10_gate")
+[node name="Target4" type="Node2D" parent="Stations/Flash"]
+position = Vector2(4630, 0)
+script = ExtResource("11_target")
+flashable = true
 
-[node name="WallGate" type="StaticBody2D" parent="Stations/Flash"]
-position = Vector2(8640, -312)
+[node name="Target5" type="Node2D" parent="Stations/Flash"]
+position = Vector2(4680, 0)
+script = ExtResource("11_target")
+flashable = true
 
-[node name="Shape" type="CollisionShape2D" parent="Stations/Flash/WallGate"]
-shape = SubResource("Rect_64x400")
-
-[node name="Look" type="Polygon2D" parent="Stations/Flash/WallGate"]
-color = Color(0.22, 0.25, 0.32, 1)
-polygon = PackedVector2Array(-32, -200, 32, -200, 32, 200, -32, 200)
-
-[node name="Final" type="Node2D" parent="Stations"]
-
-[node name="Mango1" parent="Stations/Final" instance=ExtResource("3_fruit")]
-position = Vector2(8982, 0)
-respawn_time = 0.0
-
-[node name="Mango2" parent="Stations/Final" instance=ExtResource("3_fruit")]
-position = Vector2(9282, 0)
-respawn_time = 0.0
-
-[node name="Mango3" parent="Stations/Final" instance=ExtResource("3_fruit")]
-position = Vector2(9582, 0)
-respawn_time = 0.0
+[node name="Target6" type="Node2D" parent="Stations/Flash"]
+position = Vector2(4730, 0)
+script = ExtResource("11_target")
+flashable = true
 
 [node name="Player" parent="." instance=ExtResource("1_player")]
 position = Vector2(96, -8)

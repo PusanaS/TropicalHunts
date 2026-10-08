@@ -12,15 +12,12 @@ extends CanvasLayer
 # Runs on real time. It's in the group "level_hud", so hazards can call_group("level_hud", "toast", text).
 
 const Pixel := preload("res://code/design/pixel_font.gd")
-# the clear screen's sounds (Morgan's picks): a jingle as LEVEL CLEAR! comes in, and "oh yeah" as the rank
-# letter slams in
+# the clear screen's sound (Morgan's pick): a jingle as LEVEL CLEAR! comes in. (The "oh yeah" was taken out,
+# Morgan's call, 2026-10-08: it cheapened the game.)
 const SUCCESS_SOUND := preload("res://sounds/SUCCESS_meldix-success-340660.mp3")
 const SUCCESS_DB := -3.0
 const SUCCESS_SKIP := 0.08                # the file starts with 80ms of silence
-const OH_YEAH_SOUND := preload("res://sounds/OH_YEAH_freesound_community-oh-yeah-106157.mp3")
-const OH_YEAH_DB := 0.0
-const OH_YEAH_SKIP := 2.78                # the voice only starts 2.8s into the file
-const RANK_AT := 1.4                      # the rank letter slams in this long after LEVEL CLEAR! (and "oh yeah")
+const RANK_AT := 1.4                      # the rank letter slams in this long after LEVEL CLEAR!
 
 const TITLE := [Pixel.MUSTARD, Pixel.RUST, Pixel.OFF_WHITE]
 const TEXT := [Pixel.OFF_WHITE, Pixel.PALE, Pixel.WHITE]
@@ -38,6 +35,30 @@ const BOSS_HOLD := 1.3
 const BAR_W := 220.0
 
 var timer_text := ""
+# the juice clock (level.gd's prototype switch): a countdown at the top instead of the timer
+var juice_mode := false
+var juice_left := 0.0
+var _gain_t := -100.0
+var _gain_text := ""
+var _gain_sum := 0.0
+var _loss_t := -100.0
+var _loss_text := ""
+var _fail_t := -100.0
+var _card_t := -100.0            # the fail ending's THANKS FOR PLAYING card (bar_intro.gd, you said no)
+# time on its way: each "+1s" pops up where you earned it, then swoops up into the countdown, and only counts
+# when it lands there (juice_landed)
+signal juice_landed(seconds: float)
+var _flyers: Array = []          # [from (screen), start (real time), flight time, seconds, text]
+const FLY_HOVER := 0.25          # it pops up where you earned it for this long first
+# the opening scene's line about the clock (bar_intro.gd, Morgan's call, 2026-10-08): level.gd hides the countdown
+# while it plays, and juice_arrive() flies a red copy of the seconds she says up out of her bubble onto it. When
+# it lands the countdown shows, punching in red
+var juice_hidden := false
+var _arrive := {}                # {"from" (screen), "t", "text"}
+var _arrive_t := -100.0          # when it landed
+const ARRIVE_POP := 0.35         # it floats up out of the bubble (popping to double size)...
+const ARRIVE_FLY := 0.8          # ...then swoops up and over to the countdown
+const RED := [Color("e8402e"), Color("a8201a"), Color("ff8a70")]
 var final_title := "THE END!"    # the clear screen's title on the last level (level.gd sets it)
 var boss: Node = null
 
@@ -56,8 +77,6 @@ var _bar_hit_t := -100.0
 var _clear := {}                 # {"t", "time", "rank", "last"}
 var _drops := []                 # juice drops: [pos, vel, life, colour]
 var _success_sound := AudioStreamPlayer.new()
-var _oh_yeah_sound := AudioStreamPlayer.new()
-var _oh_yeah_played := false
 
 
 func _ready():
@@ -68,9 +87,6 @@ func _ready():
 	_success_sound.stream = SUCCESS_SOUND
 	_success_sound.volume_db = SUCCESS_DB
 	add_child(_success_sound)
-	_oh_yeah_sound.stream = OH_YEAH_SOUND
-	_oh_yeah_sound.volume_db = OH_YEAH_DB
-	add_child(_oh_yeah_sound)
 	_now = _real()
 
 
@@ -96,6 +112,63 @@ func oops():
 	_oops_t = _real()
 
 
+# the juice clock: time added (a kill, a checkpoint) flashes by the countdown, adding up while it keeps coming
+func juice_gain(seconds: float):
+	if seconds < 0.0:                                # time lost: a red "-5s" by the countdown instead
+		_loss_t = _real()
+		_loss_text = "-%ds" % int(roundf(-seconds))
+		return
+	if _real() - _gain_t > 0.7:
+		_gain_sum = 0.0
+	_gain_sum += seconds
+	_gain_t = _real()
+	_gain_text = "+%ds" % int(roundf(_gain_sum))
+
+
+# the seconds in her line (bar_intro.gd), at `from` (screen): a copy flies up onto the countdown, which then shows
+func juice_arrive(from: Vector2, text: String):
+	_arrive = {"from": from, "t": _real(), "text": text}
+
+
+# time earned at `world` (a kill's spot): a "+1s" pops up there, then flies up into the countdown
+func fly_gain(seconds: float, world: Vector2, delay := 0.0):
+	var from := get_viewport().get_canvas_transform() * world
+	var label := ("+%ds" % int(roundf(seconds))) if seconds >= 0.0 else ("-%ds" % int(roundf(-seconds)))
+	_flyers.append([from, _real() + delay, randf_range(0.5, 0.7), seconds, label])
+
+
+# time still on its way to the countdown
+func pending_gain() -> float:
+	var total := 0.0
+	for f: Array in _flyers:
+		total += maxf(float(f[3]), 0.0)          # (only time coming in: a penalty on its way doesn't count)
+	return total
+
+
+# where a flying "+1s" is: hovering where it was earned, then swooping (a curve up and over) into the clock
+func _flyer_pos(f: Array, screen: Vector2) -> Vector2:
+	var from: Vector2 = f[0]
+	var t := _now - float(f[1])
+	if t < FLY_HOVER:
+		return from + Vector2(0, -roundf(10.0 * t / FLY_HOVER))
+	var k := clampf((t - FLY_HOVER) / float(f[2]), 0.0, 1.0)
+	k = k * k
+	var a := from + Vector2(0, -10)
+	var to := Vector2(screen.x / 2.0, 14.0)
+	var c := Vector2(lerpf(a.x, to.x, 0.3), minf(a.y, to.y) - 30.0)
+	return a.lerp(c, k).lerp(c.lerp(to, k), k)
+
+
+# the juice clock ran out
+func out_of_juice():
+	_fail_t = _real()
+
+
+# you said no to trying again: THANKS FOR PLAYING!, and ENTER to try again (bar_intro.gd reloads)
+func fail_card():
+	_card_t = _real()
+
+
 func boss_intro(b: Node, title: String):
 	boss = b
 	_boss_name = title
@@ -104,10 +177,14 @@ func boss_intro(b: Node, title: String):
 	_bar_lag = 1.0
 
 
+# the boss is beaten and an ending scene plays: its name and health bar go
+func hide_boss():
+	_boss_name = ""
+
+
 func clear(time_text: String, rank: String, last: bool):
 	_clear = {"t": _real(), "time": time_text, "rank": rank, "last": last}
 	_success_sound.play(SUCCESS_SKIP)
-	_oh_yeah_played = false
 	var s := get_viewport().get_visible_rect().size
 	_spray(Vector2(s.x / 2.0, s.y * 0.3), 40, 220.0)
 
@@ -132,9 +209,18 @@ func _process(_delta):
 	if _now - _bar_hit_t > 0.45:          # the white chunk catches up a moment after each hit
 		_bar_lag = move_toward(_bar_lag, _bar, dt * 0.8)
 	_bar_lag = maxf(_bar_lag, _bar)
-	if not _clear.is_empty() and not _oh_yeah_played and _now - float(_clear["t"]) >= RANK_AT:
-		_oh_yeah_played = true
-		_oh_yeah_sound.play(OH_YEAH_SKIP)
+	if not _arrive.is_empty() and _now - float(_arrive["t"]) >= ARRIVE_POP + ARRIVE_FLY:
+		_arrive = {}
+		juice_hidden = false
+		_arrive_t = _now
+	var landed: Array = []
+	for f: Array in _flyers:                     # the "+1s"s reaching the countdown
+		if t >= float(f[1]) + FLY_HOVER + float(f[2]):
+			landed.append(f)
+	for f: Array in landed:
+		_flyers.erase(f)
+		juice_gain(f[3])
+		juice_landed.emit(f[3])
 	if not _clear.is_empty() and _now - float(_clear["t"]) < 5.0:    # juice fountains while LEVEL CLEAR shows
 		var screen := get_viewport().get_visible_rect().size
 		for side in [0.0, 1.0]:
@@ -166,6 +252,8 @@ func _draw_all():
 	_draw_boss_intro(screen)
 	_draw_toast(screen)
 	_draw_oops(screen)
+	_draw_fail(screen)
+	_draw_card(screen)
 	_draw_clear(screen)
 	for d in _drops:
 		var pos: Vector2 = d[0]
@@ -173,9 +261,103 @@ func _draw_all():
 
 
 func _draw_timer():
-	if timer_text == "" or not _clear.is_empty():
+	if not _clear.is_empty():
+		return
+	if juice_mode:
+		_draw_juice_clock()
+		return
+	if timer_text == "":
 		return
 	Pixel.draw_cells(_canvas, Pixel.cells(timer_text, Vector2(8, 8), 1), TEXT)
+
+
+# the countdown, big at the top: green as time's added, pulsing red under 10 seconds, and the "+1s" beside it
+func _draw_juice_clock():
+	var screen := get_viewport().get_visible_rect().size
+	_draw_arrive(screen)
+	if juice_hidden:
+		return
+	var text := "%.1f" % maxf(juice_left, 0.0)
+	var gained := _now - _gain_t < 0.3
+	var lost := _now - _loss_t < 0.4
+	var low := juice_left < 10.0
+	var arrived := _now - _arrive_t < 0.5          # her seconds just landed on it: red a moment
+	var colors: Array = RED if arrived else (WARN if lost else (GOOD if gained else (WARN if low and fmod(_now, 0.5) < 0.25 else TEXT)))
+	var s := 3 if (low and fmod(_now, 1.0) < 0.12) or (gained and _now - _gain_t < 0.08) or _now - _arrive_t < 0.08 else 2
+	var w := Pixel.width(text, s)
+	Pixel.draw_cells(_canvas, Pixel.cells(text, Vector2(roundf(screen.x / 2.0 - w / 2.0), 6.0), s), colors)
+	if _now - _gain_t < 0.7:
+		var k := (_now - _gain_t) / 0.7
+		Pixel.draw_cells(_canvas, Pixel.cells(_gain_text, Vector2(roundf(screen.x / 2.0 + w / 2.0 + 6.0), 10.0 - roundf(k * 6.0)), 1),
+			GOOD, 1.0 - clampf((k - 0.6) / 0.4, 0.0, 1.0))
+	if _now - _loss_t < 0.9:
+		var k := (_now - _loss_t) / 0.9
+		Pixel.draw_cells(_canvas, Pixel.cells(_loss_text, Vector2(roundf(screen.x / 2.0 - w / 2.0 - Pixel.width(_loss_text, 1) - 6.0), 10.0 + roundf(k * 6.0)), 1),
+			WARN, 1.0 - clampf((k - 0.6) / 0.4, 0.0, 1.0))
+	for f: Array in _flyers:                     # the "+1s"s on their way, with a little trail
+		if _now < float(f[1]):
+			continue
+		var p := _flyer_pos(f, screen)
+		var label: String = f[4]
+		var tw := Pixel.width(label, 1)
+		if _now - float(f[1]) > FLY_HOVER:
+			var back := f.duplicate()
+			back[1] = float(f[1]) + 0.05
+			var q := _flyer_pos(back, screen)
+			_canvas.draw_rect(Rect2((q + Vector2(-1, 2)).round(), Vector2(3, 3)), Color(Pixel.GREEN, 0.5))
+		Pixel.draw_cells(_canvas, Pixel.cells(label, (p - Vector2(tw / 2.0, 3)).round(), 1), GOOD if float(f[3]) >= 0.0 else WARN)
+
+
+# her seconds on their way: they float up out of the bubble shaking, pop to double size, then swoop up and over
+# onto the countdown's first digits (it's hidden till they land), with a little red trail
+func _draw_arrive(screen: Vector2):
+	if _arrive.is_empty():
+		return
+	var age := _now - float(_arrive["t"])
+	var text: String = _arrive["text"]
+	var clock := "%.1f" % maxf(juice_left, 0.0)
+	var start: Vector2 = _arrive["from"] + Vector2(Pixel.width(text, 1) / 2.0, 3.5)       # (centres)
+	var up := start + Vector2(0, -14)
+	var end := Vector2(roundf(screen.x / 2.0 - Pixel.width(clock, 2) / 2.0) + Pixel.width(text, 2) / 2.0, 6.0 + 7.0)
+	var at := _arrive_pos(age, start, up, end)
+	var s := 1 if age < 0.1 else 2
+	var shake := Vector2(roundf(sin(_now * 41.0)), roundf(cos(_now * 37.0))) if age < ARRIVE_POP else Vector2.ZERO
+	if age > ARRIVE_POP:
+		for i in 3:
+			var back := _arrive_pos(age - 0.03 * (i + 1), start, up, end)
+			_canvas.draw_rect(Rect2((back + Vector2(-1, -1)).round(), Vector2(3, 3)), Color(RED[0], 0.45 - i * 0.12))
+	var top_left := (at + shake - Vector2(Pixel.width(text, s) / 2.0, 3.5 * s)).round()
+	Pixel.draw_cells(_canvas, Pixel.cells(text, top_left, s), RED)
+
+
+func _arrive_pos(age: float, start: Vector2, up: Vector2, end: Vector2) -> Vector2:
+	if age < ARRIVE_POP:
+		return start.lerp(up, _ease_out(clampf(age / ARRIVE_POP, 0.0, 1.0)))
+	var k := clampf((age - ARRIVE_POP) / ARRIVE_FLY, 0.0, 1.0)
+	k = k * k * (3.0 - 2.0 * k)
+	var ctrl := Vector2(up.x, end.y)                       # up first, then across
+	return up.lerp(ctrl, k).lerp(ctrl.lerp(end, k), k)
+
+
+func _draw_card(screen: Vector2):
+	if _card_t < 0.0:
+		return
+	var t := _now - _card_t
+	_canvas.draw_rect(Rect2(Vector2.ZERO, screen), Color(Pixel.INK, 0.6 * _k(t, 0.0, 0.5)))
+	var title := "THANKS FOR PLAYING!"
+	_letters(title, _centered(title, screen.y * 0.36, 3, screen), 3, t, GOOD, INF, 0.04, true)
+	if t > 1.2 and int(_now * 2.0) % 2 == 0:
+		var press := "PRESS {ENTER} TO TRY AGAIN"
+		Pixel.draw_cells(_canvas, Pixel.cells(press, _centered(press, screen.y * 0.6, 1, screen), 1), TEXT)
+
+
+func _draw_fail(screen: Vector2):
+	var t := _now - _fail_t
+	if t > 1.6:
+		return
+	if t < 0.3:
+		_canvas.draw_rect(Rect2(Vector2.ZERO, screen), Color(Pixel.RED, 0.45 * (1.0 - t / 0.3)))
+	_letters("OUT OF JUICE!", _centered("OUT OF JUICE!", screen.y * 0.36, 3, screen), 3, t, WARN, 1.2, 0.03)
 
 
 # letters drop in one by one with a bounce (flashing white as they land), and after `out` seconds they
@@ -317,9 +499,10 @@ func _draw_boss_bar(screen: Vector2):
 		a *= 1.0 - _k(_now - float(_clear["t"]), 0.0, 0.4)
 	if a <= 0.0:
 		return
+	var top := 32.0 if juice_mode else 8.0          # under the juice countdown (it pulses up to y 27), not over it
 	var x := roundf(screen.x / 2.0 - BAR_W / 2.0)
-	var y := 20.0
-	var name_pos := Vector2(roundf(screen.x / 2.0 - Pixel.width(_boss_name, 1) / 2.0), 8.0)
+	var y := top + 12.0
+	var name_pos := Vector2(roundf(screen.x / 2.0 - Pixel.width(_boss_name, 1) / 2.0), top)
 	Pixel.draw_cells(_canvas, Pixel.cells(_boss_name, name_pos, 1), BOSS, a, Pixel.HIGHLIGHT, false)
 	_canvas.draw_rect(Rect2(x - 1, y - 1, BAR_W + 2, 7), Color(Pixel.INK, a))
 	_canvas.draw_rect(Rect2(x, y, BAR_W, 5), Color(SLOT, a))
