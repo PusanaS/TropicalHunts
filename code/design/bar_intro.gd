@@ -22,11 +22,18 @@ extends Node2D
 # disappointed, but these things happen in life: want to try again? YES or NO (← → to pick, jump/Q/W to say it).
 # YES: "GO GET 'EM, TIGER!", and the level starts over (the scene reloads, `retrying` skips the chat: you walk
 # straight out). NO: "I'LL COME BACK ANOTHER TIME", and a THANKS FOR PLAYING card (ENTER tries again).
+# LEVEL 2 (Morgan's idea, 2026-10-09) opens with the same scene (`opening` 2, LINES_2): she's sweet, but her pina
+# colada was missing coconut juice last time, so could you get some, and maybe dragonfruit juice too? You sigh:
+# "ONE MOMENT, PLEASE." Its `ending` is off (level 2 ends the usual way).
 # Place it at the bar's middle, on the floor. The bar is PLACEHOLDER art drawn in code; the girl is Violeta's.
 
 @export var gate_path: NodePath
 @export var girl_x := 300.0                       # (global) where the customer stands
 @export var exit_x := 650.0                       # (global) you walk to here, then the level starts
+@export var opening := 1                          # which chat opens the level: 1 (LINES) or 2 (LINES_2)
+@export var ending := true                        # the blender ending and the fail ending play here (level 1)
+@export var girl_sheet: Texture2D                 # her outfit (empty: Violeta's own, girl-Sheet.png). Level 2:
+                                                  # scene/design/art/girl_level2.png, PLACEHOLDER (a red sundress)
 
 const Pixel := preload("res://code/design/pixel_font.gd")
 const CinemaBars := preload("res://code/design/cinema_bars.gd")
@@ -47,6 +54,14 @@ const LINES := [
 	["girl", "OH THANK YOU SWEETIE!\nI KNEW YOU'D BE A\nDARLING. BUT MAKE IT\nFAST, I'M SO THIRSTY!"],
 	["you", "I NEED TO GO FIGHT...\nUHH, I MEAN... *FIND* THE\nRIGHT JUICES."],
 	["you", "I'LL BE RIGHT BACK"],
+]
+# level 2's opening (Morgan's lines, 2026-10-09)
+const LINES_2 := [
+	["girl", "HI SWEETIE! ♥ IT'S SO\nGOOD TO SEE YOU AGAIN!"],
+	["girl", "YOUR {PINA COLADA} LAST\nTIME WAS LOVELY... BUT\nIT WAS MISSING\n{COCONUT JUICE}."],
+	["girl", "COULD YOU GET ME SOME?\nOH, AND MAYBE SOME\n{DRAGONFRUIT JUICE} TOO? ♥"],
+	["you", "*SIGH*"],
+	["you", "ONE MOMENT, PLEASE."],
 ]
 # her line about the juice clock (Morgan's call, 2026-10-08), after "...I'M SO THIRSTY!" (LINES[WAIT_AFTER]). Only
 # when the level's juice clock is on, with its clock_start filled in. [words] in square brackets are red and shake;
@@ -88,7 +103,7 @@ const POP_SETTLE := 0.13                          # ...then back down to normal 
 const POP_FROM := 0.3
 const POP_BIG := 1.45
 const WALK_SPEED := 120.0
-const SHUT_AT := 614.0                            # past this, the gate slams shut behind you
+const SHUT_PAST := -36.0                          # past exit_x + this, the gate slams shut behind you
 const BUBBLE_GIRL := Vector2(0, -74)              # where her bubble points (from her feet)
 const BUBBLE_YOU := Vector2(0, -48)               # where yours does
 const TEXT := [Pixel.OFF_WHITE, Pixel.PALE, Pixel.WHITE]
@@ -145,7 +160,9 @@ var _red_sent := false                            # their copy has flown up to t
 
 func _ready():
 	add_to_group("level_intro")                   # level.gd waits for intro_done() before the level starts
-	add_to_group("level_outro")                   # ...and calls play_ending() when the boss is beaten
+	if ending:
+		add_to_group("level_outro")               # ...and calls play_ending() when the boss is beaten
+	_lines = _opening_lines()
 	_back.z_index = -1
 	_back.draw.connect(_draw_back)
 	add_child(_back)
@@ -161,7 +178,7 @@ func _ready():
 	frames.set_animation_speed("default", GIRL_FPS)
 	for i in 4:
 		var tex := AtlasTexture.new()
-		tex.atlas = GIRL_SHEET
+		tex.atlas = girl_sheet if girl_sheet else GIRL_SHEET
 		tex.region = Rect2(i * 128, 0, 128, 128)
 		frames.add_frame("default", tex)
 	_girl.sprite_frames = frames
@@ -173,6 +190,10 @@ func _ready():
 	_gate = get_node_or_null(gate_path)
 	_retry = retrying
 	retrying = false
+
+
+func _opening_lines() -> Array:
+	return LINES_2 if opening == 2 else LINES
 
 
 func _process(delta: float):
@@ -196,7 +217,7 @@ func _process(delta: float):
 					_step = Step.TALK
 					_line = 0
 					var level := get_tree().get_first_node_in_group("level")
-					if level and level.get("juice_clock"):
+					if level and level.get("juice_clock") and opening == 1:
 						_lines = LINES.duplicate()
 						_lines.insert(WAIT_AFTER + 1, ["girl", WAIT_LINE % int(level.clock_start)])
 					_start_line()
@@ -305,7 +326,7 @@ func _walking(delta: float):
 	if player.global_position.x - global_position.x > STEP_END and player.global_position.y < global_position.y:
 		_drop_v += DROP_GRAVITY * delta                       # off the end of the step: down to the floor
 		player.global_position.y = minf(player.global_position.y + _drop_v * delta, global_position.y)
-	if player.global_position.x >= SHUT_AT and _gate and _gate.has_method("close") and not _gate.get_meta("shut", false):
+	if player.global_position.x >= exit_x + SHUT_PAST and _gate and _gate.has_method("close") and not _gate.get_meta("shut", false):
 		_gate.set_meta("shut", true)
 		_gate.close()                             # it slams shut behind you, for good
 	if player.global_position.x >= exit_x:

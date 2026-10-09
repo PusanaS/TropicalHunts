@@ -340,7 +340,8 @@ func fail_card():
 # your first move, and falling sends you back to `start` (past the scene's gate, which is shut for good)
 func intro_done(start: Vector2):
 	# FIRST CUSTOMER as the level starts: you've met her at the tiki bar (achievements.gd)
-	get_tree().create_timer(0.6, true, false, true).timeout.connect(func(): Achievements.unlock(get_tree(), "customer"))
+	if level_number == 1:                    # (MY FIRST CUSTOMER: level 1's opening, not level 2's)
+		get_tree().create_timer(0.6, true, false, true).timeout.connect(func(): Achievements.unlock(get_tree(), "customer"))
 	_intro_over = true
 	_intro_waiting = false
 	hud.juice_hidden = false            # (if it hasn't flown in: a retry skips the chat)

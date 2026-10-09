@@ -9,6 +9,8 @@ extends Node2D
 #      cut (the fruit minion) split in two along their slash, the rest take the flash's hit. Sparks and a
 #      jolt each, a big shake on the last. The player keeps galloping.
 # player.flashing is true while its hits land, so a target can tell a hit came from the flash.
+# A target can have flash_marked(): it's called as its slash appears, so it can hold still till its cut lands
+# (a rolling coconut otherwise rolled out from under its slash before its turn came).
 
 const DASH_TIME := 0.15          # the dash through them, from start to end (not counting the catches)
 const CUT_HOLD := 0.04           # the dash catches on each enemy it cuts for this long
@@ -183,6 +185,8 @@ func _cut(i: int, facing: float):
 	var half := Vector2(facing * SLASH_HALF.x, -SLASH_HALF.y if i % 2 == 0 else SLASH_HALF.y)
 	_slashes[i] = [mid - half, mid + half, _now()]
 	e.modulate = Color(3, 3, 3)
+	if e.has_method("flash_marked"):
+		e.flash_marked()
 	player.play_swing_sound(false)
 
 

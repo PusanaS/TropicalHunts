@@ -1,12 +1,20 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://code/design/coconut.gd" id="coconut"]
 [ext_resource type="Script" path="res://code/design/coconut_drop.gd" id="palm"]
+[ext_resource type="Script" path="res://code/design/pirate_ship.gd" id="pirates"]
+[ext_resource type="Script" path="res://code/design/rope_bridge.gd" id="bridge"]
+[ext_resource type="Script" path="res://code/design/jelly_lab.gd" id="lab"]
+[ext_resource type="Script" path="res://code/design/lab_scientist.gd" id="scientist"]
+[ext_resource type="Script" path="res://code/design/lab_duel.gd" id="duel"]
+[ext_resource type="Script" path="res://code/design/bunker_door.gd" id="bunker"]
+[ext_resource type="Script" path="res://code/design/lab_bay.gd" id="bay"]
 [ext_resource type="Script" path="res://code/design/star_shaft.gd" id="shaft"]
 [ext_resource type="Script" path="res://code/design/crumble.gd" id="crumble"]
 [ext_resource type="Script" path="res://code/design/geyser.gd" id="geyser"]
 [ext_resource type="Script" path="res://code/design/starfruit.gd" id="star"]
 [ext_resource type="Script" path="res://code/design/tutorial_gate.gd" id="gate"]
+[ext_resource type="Script" path="res://code/design/bar_intro.gd" id="barintro"]
+[ext_resource type="Texture2D" path="res://scene/design/art/girl_level2.png" id="girl2"]
 [ext_resource type="Script" path="res://code/design/star_queen.gd" id="queen"]
 [ext_resource type="PackedScene" uid="uid://bsrj1c4321u48" path="res://scene/player.tscn" id="player"]
 [ext_resource type="Script" path="res://code/design/level.gd" id="level"]
@@ -17,11 +25,38 @@
 [ext_resource type="Script" path="res://code/design/living_background.gd" id="living"]
 [ext_resource type="Script" path="res://code/design/charge_fx.gd" id="chargefx"]
 
+[sub_resource type="RectangleShape2D" id="Rect_460x64"]
+size = Vector2(460.0, 64.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_56x18"]
+size = Vector2(56.0, 18.0)
+
 [sub_resource type="RectangleShape2D" id="Rect_64x640"]
 size = Vector2(64.0, 640.0)
 
-[sub_resource type="RectangleShape2D" id="Rect_2424x64"]
-size = Vector2(2424.0, 64.0)
+[sub_resource type="RectangleShape2D" id="Rect_12004x64"]
+size = Vector2(12004.0, 64.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_152x64"]
+size = Vector2(152.0, 64.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_32x648"]
+size = Vector2(32.0, 648.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_2148x40"]
+size = Vector2(2148.0, 40.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_1348x64"]
+size = Vector2(1348.0, 64.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_832x64"]
+size = Vector2(832.0, 64.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_608x64"]
+size = Vector2(608.0, 64.0)
+
+[sub_resource type="RectangleShape2D" id="Rect_64x560"]
+size = Vector2(64.0, 560.0)
 
 [sub_resource type="RectangleShape2D" id="Rect_120x20"]
 size = Vector2(120.0, 20.0)
@@ -57,7 +92,7 @@ size = Vector2(64.0, 1028.0)
 
 [node name="Backdrop" type="Polygon2D" parent="."]
 color = Color(0.95, 0.6, 0.45, 1)
-polygon = PackedVector2Array(-1024, -2048, 8324, -2048, 8324, 1024, -1024, 1024)
+polygon = PackedVector2Array(-1024, -2048, 21404, -2048, 21404, 1024, -1024, 1024)
 
 [node name="Level" type="Node2D" parent="."]
 
@@ -73,48 +108,930 @@ polygon = PackedVector2Array(-1024, -2048, 8324, -2048, 8324, 1024, -1024, 1024)
 
 [node name="KillZones" type="Node2D" parent="."]
 
-[node name="WallLeft" type="StaticBody2D" parent="Level"]
-position = Vector2(-32.0, -192.0)
+[node name="WallBar" type="StaticBody2D" parent="Level"]
+position = Vector2(-492.0, -192.0)
 
-[node name="Shape" type="CollisionShape2D" parent="Level/WallLeft"]
+[node name="Shape" type="CollisionShape2D" parent="Level/WallBar"]
 shape = SubResource("Rect_64x640")
 
-[node name="Look" type="Polygon2D" parent="Level/WallLeft"]
+[node name="Look" type="Polygon2D" parent="Level/WallBar"]
 color = Color(0.29, 0.18, 0.24, 1)
 polygon = PackedVector2Array(-32.0, -320.0, 32.0, -320.0, 32.0, 320.0, -32.0, 320.0)
 
+[node name="FloorBar" type="StaticBody2D" parent="Level"]
+position = Vector2(-230.0, 32.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/FloorBar"]
+shape = SubResource("Rect_460x64")
+
+[node name="Look" type="Polygon2D" parent="Level/FloorBar"]
+color = Color(0.29, 0.18, 0.24, 1)
+polygon = PackedVector2Array(-230.0, -32.0, 230.0, -32.0, 230.0, 32.0, -230.0, 32.0)
+
+[node name="BoardBarStep" type="StaticBody2D" parent="Level"]
+position = Vector2(-160.0, -9.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/BoardBarStep"]
+shape = SubResource("Rect_56x18")
+
+[node name="WallLeft" type="StaticBody2D" parent="Level"]
+position = Vector2(-32.0, -312.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/WallLeft"]
+shape = SubResource("Rect_64x400")
+
+[node name="Look" type="Polygon2D" parent="Level/WallLeft"]
+color = Color(0.29, 0.18, 0.24, 1)
+polygon = PackedVector2Array(-32.0, -200.0, 32.0, -200.0, 32.0, 200.0, -32.0, 200.0)
+
 [node name="FloorBeach" type="StaticBody2D" parent="Level"]
-position = Vector2(1148.0, 32.0)
+position = Vector2(5938.0, 32.0)
 
 [node name="Shape" type="CollisionShape2D" parent="Level/FloorBeach"]
-shape = SubResource("Rect_2424x64")
+shape = SubResource("Rect_12004x64")
 
 [node name="Look" type="Polygon2D" parent="Level/FloorBeach"]
 color = Color(0.29, 0.18, 0.24, 1)
-polygon = PackedVector2Array(-1212.0, -32.0, 1212.0, -32.0, 1212.0, 32.0, -1212.0, 32.0)
+polygon = PackedVector2Array(-6002.0, -32.0, 6002.0, -32.0, 6002.0, 32.0, -6002.0, 32.0)
 
-[node name="Coconut1" type="CharacterBody2D" parent="Enemies"]
-position = Vector2(520.0, 0.0)
-script = ExtResource("coconut")
-mode = "sit"
+[node name="WallChasmL" type="StaticBody2D" parent="Level"]
+position = Vector2(11908.0, 280.0)
 
-[node name="Coconut2" type="CharacterBody2D" parent="Enemies"]
-position = Vector2(1000.0, 0.0)
-script = ExtResource("coconut")
-mode = "sit"
+[node name="Shape" type="CollisionShape2D" parent="Level/WallChasmL"]
+shape = SubResource("Rect_64x560")
 
-[node name="PalmDrop" type="Node2D" parent="Enemies"]
-position = Vector2(1640.0, -120.0)
+[node name="Look" type="Polygon2D" parent="Level/WallChasmL"]
+color = Color(0.29, 0.18, 0.24, 1)
+polygon = PackedVector2Array(-32.0, -280.0, 32.0, -280.0, 32.0, 280.0, -32.0, 280.0)
+
+[node name="WallChasmR" type="StaticBody2D" parent="Level"]
+position = Vector2(12532.0, 280.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/WallChasmR"]
+shape = SubResource("Rect_64x560")
+
+[node name="Look" type="Polygon2D" parent="Level/WallChasmR"]
+color = Color(0.29, 0.18, 0.24, 1)
+polygon = PackedVector2Array(-32.0, -280.0, 32.0, -280.0, 32.0, 280.0, -32.0, 280.0)
+
+[node name="FloorBridgeFar" type="StaticBody2D" parent="Level"]
+position = Vector2(12576.0, 32.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/FloorBridgeFar"]
+shape = SubResource("Rect_152x64")
+
+[node name="Look" type="Polygon2D" parent="Level/FloorBridgeFar"]
+color = Color(0.29, 0.18, 0.24, 1)
+polygon = PackedVector2Array(-76.0, -32.0, 76.0, -32.0, 76.0, 32.0, -76.0, 32.0)
+
+[node name="WallLabL" type="StaticBody2D" parent="Level"]
+position = Vector2(12636.0, -436.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/WallLabL"]
+shape = SubResource("Rect_32x648")
+
+[node name="WallLabR" type="StaticBody2D" parent="Level"]
+position = Vector2(14816.0, -436.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/WallLabR"]
+shape = SubResource("Rect_32x648")
+
+[node name="WallLabCeiling" type="StaticBody2D" parent="Level"]
+position = Vector2(13726.0, -244.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/WallLabCeiling"]
+shape = SubResource("Rect_2148x40")
+
+[node name="WallLabFloorA" type="StaticBody2D" parent="Level"]
+position = Vector2(13326.0, 32.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/WallLabFloorA"]
+shape = SubResource("Rect_1348x64")
+
+[node name="WallLabFloorB" type="StaticBody2D" parent="Level"]
+position = Vector2(14416.0, 32.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/WallLabFloorB"]
+shape = SubResource("Rect_832x64")
+
+[node name="FloorLabOut" type="StaticBody2D" parent="Level"]
+position = Vector2(15136.0, 32.0)
+
+[node name="Shape" type="CollisionShape2D" parent="Level/FloorLabOut"]
+shape = SubResource("Rect_608x64")
+
+[node name="Look" type="Polygon2D" parent="Level/FloorLabOut"]
+color = Color(0.29, 0.18, 0.24, 1)
+polygon = PackedVector2Array(-304.0, -32.0, 304.0, -32.0, 304.0, 32.0, -304.0, 32.0)
+
+[node name="Grove" type="Node2D" parent="Hazards"]
+
+[node name="Palm1" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(760.0, -148.0)
 script = ExtResource("palm")
-interval = 2.2
-dir = -1
-trunk = 120.0
+interval = 3.2
+active_range = 560.0
+max_alive = 2
+trunk = 148.0
+lean = 14.0
+roll_speed = 250.0
+
+[node name="Palm2" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(930.0, -124.0)
+script = ExtResource("palm")
+interval = 3.2
+active_range = 560.0
+max_alive = 2
+trunk = 124.0
+lean = 24.0
+roll_speed = 220.0
+
+[node name="Palm3" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1080.0, -148.0)
+script = ExtResource("palm")
+interval = 2.4
+active_range = 560.0
+max_alive = 2
+trunk = 148.0
+lean = 6.0
+roll_speed = 250.0
+
+[node name="Palm4" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1230.0, -160.0)
+script = ExtResource("palm")
+interval = 3.2
+active_range = 560.0
+max_alive = 2
+trunk = 160.0
+lean = 14.0
+roll_speed = 220.0
+
+[node name="Palm5" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1460.0, -112.0)
+script = ExtResource("palm")
+interval = 2.4
+active_range = 560.0
+max_alive = 2
+trunk = 112.0
+lean = 0.0
+roll_speed = 220.0
+
+[node name="Palm6" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1630.0, -160.0)
+script = ExtResource("palm")
+interval = 2.8
+active_range = 560.0
+max_alive = 2
+trunk = 160.0
+lean = -14.0
+roll_speed = 240.0
+
+[node name="Palm7" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1860.0, -184.0)
+script = ExtResource("palm")
+interval = 2.6
+active_range = 560.0
+max_alive = 2
+trunk = 184.0
+lean = -18.0
+roll_speed = 230.0
+
+[node name="Palm8" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2070.0, -112.0)
+script = ExtResource("palm")
+interval = 2.8
+active_range = 560.0
+max_alive = 2
+trunk = 112.0
+lean = -14.0
+roll_speed = 240.0
+
+[node name="Palm9" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2300.0, -184.0)
+script = ExtResource("palm")
+interval = 2.8
+active_range = 560.0
+max_alive = 2
+trunk = 184.0
+lean = -24.0
+roll_speed = 230.0
+
+[node name="Palm10" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2470.0, -160.0)
+script = ExtResource("palm")
+interval = 2.4
+active_range = 560.0
+max_alive = 2
+trunk = 160.0
+lean = 0.0
+roll_speed = 250.0
+
+[node name="Palm11" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2620.0, -148.0)
+script = ExtResource("palm")
+interval = 3.0
+active_range = 560.0
+max_alive = 2
+trunk = 148.0
+lean = -10.0
+roll_speed = 210.0
+
+[node name="Palm12" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2770.0, -184.0)
+script = ExtResource("palm")
+interval = 2.6
+active_range = 560.0
+max_alive = 2
+trunk = 184.0
+lean = -6.0
+roll_speed = 210.0
+
+[node name="Palm13" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2980.0, -148.0)
+script = ExtResource("palm")
+interval = 2.4
+active_range = 560.0
+max_alive = 2
+trunk = 148.0
+lean = 14.0
+roll_speed = 250.0
+
+[node name="Palm14" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3150.0, -184.0)
+script = ExtResource("palm")
+interval = 2.4
+active_range = 560.0
+max_alive = 2
+trunk = 184.0
+lean = 10.0
+roll_speed = 230.0
+
+[node name="Palm15" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3340.0, -112.0)
+script = ExtResource("palm")
+interval = 2.6
+active_range = 560.0
+max_alive = 2
+trunk = 112.0
+lean = 0.0
+roll_speed = 220.0
+
+[node name="Palm16" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3490.0, -112.0)
+script = ExtResource("palm")
+interval = 3.0
+active_range = 560.0
+max_alive = 2
+trunk = 112.0
+lean = -14.0
+roll_speed = 220.0
+
+[node name="Palm17" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3720.0, -124.0)
+script = ExtResource("palm")
+interval = 2.6
+active_range = 560.0
+max_alive = 2
+trunk = 124.0
+lean = 18.0
+roll_speed = 220.0
+
+[node name="Palm18" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3930.0, -172.0)
+script = ExtResource("palm")
+interval = 3.0
+active_range = 560.0
+max_alive = 2
+trunk = 172.0
+lean = 0.0
+roll_speed = 240.0
+
+[node name="PalmDeco1" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(180.0, -196.0)
+script = ExtResource("palm")
+drops = false
+fern = true
+trunk = 196.0
+lean = -8.0
+
+[node name="PalmDeco2" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(330.0, -100.0)
+script = ExtResource("palm")
+drops = false
+fern = true
+trunk = 100.0
+lean = -28.0
+
+[node name="PalmDeco3" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(450.0, -140.0)
+script = ExtResource("palm")
+drops = false
+fern = false
+trunk = 140.0
+lean = 28.0
+
+[node name="PalmDeco4" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(570.0, -172.0)
+script = ExtResource("palm")
+drops = false
+fern = false
+trunk = 172.0
+lean = 14.0
+
+[node name="PalmDeco5" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(750.0, -116.0)
+script = ExtResource("palm")
+drops = false
+fern = false
+trunk = 116.0
+lean = -20.0
+
+[node name="PalmDeco6" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(855.0, -212.0)
+script = ExtResource("palm")
+drops = false
+fern = false
+trunk = 212.0
+lean = -8.0
+
+[node name="PalmDeco7" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1015.0, -128.0)
+script = ExtResource("palm")
+drops = false
+fern = true
+trunk = 128.0
+lean = -28.0
+
+[node name="PalmDeco8" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1175.0, -116.0)
+script = ExtResource("palm")
+drops = false
+fern = true
+trunk = 116.0
+lean = 0.0
+
+[node name="PalmDeco9" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1345.0, -156.0)
+script = ExtResource("palm")
+drops = false
+fern = false
+trunk = 156.0
+lean = 28.0
+
+[node name="PalmDeco10" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1535.0, -172.0)
+script = ExtResource("palm")
+drops = false
+fern = true
+trunk = 172.0
+lean = 28.0
+
+[node name="PalmDeco11" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1735.0, -156.0)
+script = ExtResource("palm")
+drops = false
+fern = false
+trunk = 156.0
+lean = 28.0
+
+[node name="PalmDeco12" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1965.0, -140.0)
+script = ExtResource("palm")
+drops = false
+fern = true
+trunk = 140.0
+lean = -28.0
+
+[node name="PalmDeco13" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2195.0, -116.0)
+script = ExtResource("palm")
+drops = false
+fern = false
+trunk = 116.0
+lean = 8.0
+
+[node name="PalmDeco14" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2365.0, -172.0)
+script = ExtResource("palm")
+drops = false
+fern = true
+trunk = 172.0
+lean = -20.0
+
+[node name="PalmDeco15" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2535.0, -128.0)
+script = ExtResource("palm")
+drops = false
+fern = true
+trunk = 128.0
+lean = 0.0
+
+[node name="PalmDeco16" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2715.0, -196.0)
+script = ExtResource("palm")
+drops = false
+fern = true
+trunk = 196.0
+lean = -8.0
+
+[node name="PalmDeco17" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2885.0, -100.0)
+script = ExtResource("palm")
+drops = false
+fern = false
+trunk = 100.0
+lean = -28.0
+
+[node name="PalmDeco18" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3045.0, -212.0)
+script = ExtResource("palm")
+drops = false
+fern = false
+trunk = 212.0
+lean = 0.0
+
+[node name="PalmDeco19" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3225.0, -196.0)
+script = ExtResource("palm")
+drops = false
+fern = true
+trunk = 196.0
+lean = 0.0
+
+[node name="PalmDeco20" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3395.0, -156.0)
+script = ExtResource("palm")
+drops = false
+fern = true
+trunk = 156.0
+lean = -20.0
+
+[node name="PalmDeco21" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3615.0, -156.0)
+script = ExtResource("palm")
+drops = false
+fern = true
+trunk = 156.0
+lean = -28.0
+
+[node name="PalmDeco22" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3835.0, -128.0)
+script = ExtResource("palm")
+drops = false
+fern = false
+trunk = 128.0
+lean = -14.0
+
+[node name="PalmDeco23" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(4050.0, -116.0)
+script = ExtResource("palm")
+drops = false
+fern = true
+trunk = 116.0
+lean = -20.0
+
+[node name="PalmDeco24" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(4160.0, -172.0)
+script = ExtResource("palm")
+drops = false
+fern = false
+trunk = 172.0
+lean = 8.0
+
+[node name="PalmBack1" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(60.0, -194.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 194.0
+lean = 0.0
+
+[node name="PalmBack2" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(150.0, -194.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 194.0
+lean = 26.0
+
+[node name="PalmBack3" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(280.0, -162.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 162.0
+lean = -18.0
+
+[node name="PalmBack4" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(350.0, -130.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 130.0
+lean = -18.0
+
+[node name="PalmBack5" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(480.0, -146.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 146.0
+lean = 0.0
+
+[node name="PalmBack6" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(590.0, -194.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 194.0
+lean = -10.0
+
+[node name="PalmBack7" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(720.0, -178.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 178.0
+lean = 0.0
+
+[node name="PalmBack8" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(830.0, -178.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 178.0
+lean = -10.0
+
+[node name="PalmBack9" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(960.0, -146.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 146.0
+lean = -10.0
+
+[node name="PalmBack10" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1090.0, -210.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 210.0
+lean = 0.0
+
+[node name="PalmBack11" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1220.0, -210.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 210.0
+lean = 26.0
+
+[node name="PalmBack12" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1310.0, -194.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 194.0
+lean = 18.0
+
+[node name="PalmBack13" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1380.0, -146.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 146.0
+lean = -26.0
+
+[node name="PalmBack14" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1510.0, -130.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 130.0
+lean = 34.0
+
+[node name="PalmBack15" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1640.0, -162.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 162.0
+lean = 26.0
+
+[node name="PalmBack16" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1750.0, -162.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 162.0
+lean = 18.0
+
+[node name="PalmBack17" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1840.0, -178.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 178.0
+lean = -26.0
+
+[node name="PalmBack18" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(1970.0, -194.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 194.0
+lean = 34.0
+
+[node name="PalmBack19" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2080.0, -210.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 210.0
+lean = -26.0
+
+[node name="PalmBack20" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2170.0, -162.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 162.0
+lean = -34.0
+
+[node name="PalmBack21" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2280.0, -130.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 130.0
+lean = 0.0
+
+[node name="PalmBack22" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2390.0, -194.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 194.0
+lean = 0.0
+
+[node name="PalmBack23" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2460.0, -162.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 162.0
+lean = -10.0
+
+[node name="PalmBack24" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2590.0, -130.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 130.0
+lean = 0.0
+
+[node name="PalmBack25" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2700.0, -146.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 146.0
+lean = 34.0
+
+[node name="PalmBack26" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2790.0, -194.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 194.0
+lean = -10.0
+
+[node name="PalmBack27" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2920.0, -194.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 194.0
+lean = 18.0
+
+[node name="PalmBack28" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(2990.0, -194.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 194.0
+lean = 0.0
+
+[node name="PalmBack29" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3060.0, -210.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 210.0
+lean = 0.0
+
+[node name="PalmBack30" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3150.0, -194.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 194.0
+lean = -18.0
+
+[node name="PalmBack31" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3280.0, -210.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 210.0
+lean = 34.0
+
+[node name="PalmBack32" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3350.0, -130.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 130.0
+lean = -18.0
+
+[node name="PalmBack33" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3420.0, -146.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 146.0
+lean = 0.0
+
+[node name="PalmBack34" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3510.0, -146.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 146.0
+lean = -26.0
+
+[node name="PalmBack35" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3620.0, -194.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 194.0
+lean = -34.0
+
+[node name="PalmBack36" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3750.0, -210.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 210.0
+lean = 34.0
+
+[node name="PalmBack37" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3840.0, -210.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 210.0
+lean = 26.0
+
+[node name="PalmBack38" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(3930.0, -162.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 162.0
+lean = 18.0
+
+[node name="PalmBack39" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(4000.0, -178.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 178.0
+lean = 18.0
+
+[node name="PalmBack40" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(4090.0, -210.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 210.0
+lean = -10.0
+
+[node name="PalmBack41" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(4200.0, -178.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 178.0
+lean = 0.0
+
+[node name="PalmBack42" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(4270.0, -162.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 162.0
+lean = 26.0
+
+[node name="PalmBack43" type="Node2D" parent="Hazards/Grove"]
+position = Vector2(4360.0, -194.0)
+script = ExtResource("palm")
+drops = false
+back = true
+fern = false
+trunk = 194.0
+lean = 18.0
+
+[node name="BoardRopeBridge" type="StaticBody2D" parent="Hazards"]
+position = Vector2(11940.0, 0.0)
+script = ExtResource("bridge")
+width = 560.0
+
+[node name="JellyLab" type="Node2D" parent="Hazards"]
+position = Vector2(12620.0, 0.0)
+script = ExtResource("lab")
+width = 2212.0
+tubes = Array[float]([420.0, 452.0])
+
+[node name="LabBay" type="Node2D" parent="Hazards"]
+position = Vector2(13800.0, 0.0)
+script = ExtResource("bay")
+width = 990.0
+
+[node name="LabDuel" type="Node2D" parent="Hazards"]
+position = Vector2(12730.0, 0.0)
+script = ExtResource("duel")
+scientist_path = NodePath("../../Enemies/LabScientist")
+lab_path = NodePath("../JellyLab")
+door_path = NodePath("../WallBunkerDoor")
+
+[node name="WallBunkerDoor" type="StaticBody2D" parent="Hazards"]
+position = Vector2(13400.0, 0.0)
+script = ExtResource("bunker")
+
+[node name="LabScientist" type="CharacterBody2D" parent="Enemies"]
+position = Vector2(12960.0, 0.0)
+script = ExtResource("scientist")
+arena = Vector2(12660, 13350)
+
+[node name="PirateShip" type="Node2D" parent="Hazards"]
+script = ExtResource("pirates")
+appear_x = 4300.0
+from_x = 4600.0
+to_x = 11700.0
+leave_x = 12600.0
+
+[node name="CPBeach" type="Marker2D" parent="Checkpoints"]
+position = Vector2(11780.0, 0.0)
 
 [node name="CP1" type="Marker2D" parent="Checkpoints"]
-position = Vector2(1760.0, 0.0)
+position = Vector2(4160.0, 0.0)
 
 [node name="LedgeShaftL" type="StaticBody2D" parent="Level"]
-position = Vector2(1940.0, -350.0)
+position = Vector2(15020.0, -350.0)
 
 [node name="Shape" type="CollisionShape2D" parent="Level/LedgeShaftL"]
 shape = SubResource("Rect_120x20")
@@ -124,7 +1041,7 @@ color = Color(0.42, 0.26, 0.19, 1)
 polygon = PackedVector2Array(-60.0, -10.0, 60.0, -10.0, 60.0, 10.0, -60.0, 10.0)
 
 [node name="Cliff" type="StaticBody2D" parent="Level"]
-position = Vector2(2480.0, -116.0)
+position = Vector2(15560.0, -116.0)
 
 [node name="Shape" type="CollisionShape2D" parent="Level/Cliff"]
 shape = SubResource("Rect_240x488")
@@ -134,21 +1051,21 @@ color = Color(0.23, 0.14, 0.2, 1)
 polygon = PackedVector2Array(-120.0, -244.0, 120.0, -244.0, 120.0, 244.0, -120.0, 244.0)
 
 [node name="StarShaft" type="Node2D" parent="Hazards"]
-position = Vector2(2180.0, 0.0)
+position = Vector2(15260.0, 0.0)
 script = ExtResource("shaft")
 width = 360.0
 height = 360.0
 exit_side = 1
 
 [node name="CP2" type="Marker2D" parent="Checkpoints"]
-position = Vector2(2420.0, -360.0)
+position = Vector2(15500.0, -360.0)
 
 [node name="SeaZone" type="Marker2D" parent="KillZones"]
-position = Vector2(2600.0, -250.0)
+position = Vector2(15680.0, -250.0)
 metadata/size = Vector2(3400, 600)
 
 [node name="Board1" type="StaticBody2D" parent="Level"]
-position = Vector2(2775.0, -348.0)
+position = Vector2(15855.0, -348.0)
 
 [node name="Shape" type="CollisionShape2D" parent="Level/Board1"]
 shape = SubResource("Rect_350x24")
@@ -158,31 +1075,31 @@ color = Color(0.42, 0.26, 0.19, 1)
 polygon = PackedVector2Array(-175.0, -12.0, 175.0, -12.0, 175.0, 12.0, -175.0, 12.0)
 
 [node name="CrumblePlank1" type="StaticBody2D" parent="Hazards"]
-position = Vector2(2998.0, -360.0)
+position = Vector2(16078.0, -360.0)
 script = ExtResource("crumble")
 width = 96.0
 look = "wood"
 
 [node name="CrumblePlank2" type="StaticBody2D" parent="Hazards"]
-position = Vector2(3094.0, -360.0)
+position = Vector2(16174.0, -360.0)
 script = ExtResource("crumble")
 width = 96.0
 look = "wood"
 
 [node name="CrumblePlank3" type="StaticBody2D" parent="Hazards"]
-position = Vector2(3190.0, -360.0)
+position = Vector2(16270.0, -360.0)
 script = ExtResource("crumble")
 width = 96.0
 look = "wood"
 
 [node name="CrumblePlank4" type="StaticBody2D" parent="Hazards"]
-position = Vector2(3286.0, -360.0)
+position = Vector2(16366.0, -360.0)
 script = ExtResource("crumble")
 width = 96.0
 look = "wood"
 
 [node name="Board2" type="StaticBody2D" parent="Level"]
-position = Vector2(3567.0, -348.0)
+position = Vector2(16647.0, -348.0)
 
 [node name="Shape" type="CollisionShape2D" parent="Level/Board2"]
 shape = SubResource("Rect_466x24")
@@ -192,13 +1109,13 @@ color = Color(0.42, 0.26, 0.19, 1)
 polygon = PackedVector2Array(-233.0, -12.0, 233.0, -12.0, 233.0, 12.0, -233.0, 12.0)
 
 [node name="Blowhole" type="Node2D" parent="Hazards"]
-position = Vector2(3700.0, -360.0)
+position = Vector2(16780.0, -360.0)
 script = ExtResource("geyser")
 kind = "blowhole"
 period = 2.6
 
 [node name="WallHigh" type="StaticBody2D" parent="Level"]
-position = Vector2(3824.0, -458.0)
+position = Vector2(16904.0, -458.0)
 
 [node name="Shape" type="CollisionShape2D" parent="Level/WallHigh"]
 shape = SubResource("Rect_48x244")
@@ -208,7 +1125,7 @@ color = Color(0.23, 0.14, 0.2, 1)
 polygon = PackedVector2Array(-24.0, -122.0, 24.0, -122.0, 24.0, 122.0, -24.0, 122.0)
 
 [node name="Board3" type="StaticBody2D" parent="Level"]
-position = Vector2(4074.0, -348.0)
+position = Vector2(17154.0, -348.0)
 
 [node name="Shape" type="CollisionShape2D" parent="Level/Board3"]
 shape = SubResource("Rect_452x24")
@@ -218,46 +1135,46 @@ color = Color(0.42, 0.26, 0.19, 1)
 polygon = PackedVector2Array(-226.0, -12.0, 226.0, -12.0, 226.0, 12.0, -226.0, 12.0)
 
 [node name="CP3" type="Marker2D" parent="Checkpoints"]
-position = Vector2(3920.0, -360.0)
+position = Vector2(17000.0, -360.0)
 
 [node name="StarStep1" type="Node2D" parent="Hazards"]
-position = Vector2(4430.0, -410.0)
+position = Vector2(17510.0, -410.0)
 script = ExtResource("star")
 mode = "float"
 respawn_time = 2.5
 
 [node name="StarStep2" type="Node2D" parent="Hazards"]
-position = Vector2(4620.0, -440.0)
+position = Vector2(17700.0, -440.0)
 script = ExtResource("star")
 mode = "float"
 respawn_time = 2.5
 
 [node name="StarStep3" type="Node2D" parent="Hazards"]
-position = Vector2(4810.0, -420.0)
+position = Vector2(17890.0, -420.0)
 script = ExtResource("star")
 mode = "float"
 respawn_time = 2.5
 
 [node name="StarStep4" type="Node2D" parent="Hazards"]
-position = Vector2(5000.0, -450.0)
+position = Vector2(18080.0, -450.0)
 script = ExtResource("star")
 mode = "float"
 respawn_time = 2.5
 
 [node name="StarStep5" type="Node2D" parent="Hazards"]
-position = Vector2(5190.0, -430.0)
+position = Vector2(18270.0, -430.0)
 script = ExtResource("star")
 mode = "float"
 respawn_time = 2.5
 
 [node name="StarStep6" type="Node2D" parent="Hazards"]
-position = Vector2(5380.0, -410.0)
+position = Vector2(18460.0, -410.0)
 script = ExtResource("star")
 mode = "float"
 respawn_time = 2.5
 
 [node name="Board4" type="StaticBody2D" parent="Level"]
-position = Vector2(5800.0, -348.0)
+position = Vector2(18880.0, -348.0)
 
 [node name="Shape" type="CollisionShape2D" parent="Level/Board4"]
 shape = SubResource("Rect_400x24")
@@ -267,10 +1184,10 @@ color = Color(0.42, 0.26, 0.19, 1)
 polygon = PackedVector2Array(-200.0, -12.0, 200.0, -12.0, 200.0, 12.0, -200.0, 12.0)
 
 [node name="CP4" type="Marker2D" parent="Checkpoints"]
-position = Vector2(5660.0, -360.0)
+position = Vector2(18740.0, -360.0)
 
 [node name="ArenaFloor" type="StaticBody2D" parent="Level"]
-position = Vector2(6600.0, -116.0)
+position = Vector2(19680.0, -116.0)
 
 [node name="Shape" type="CollisionShape2D" parent="Level/ArenaFloor"]
 shape = SubResource("Rect_1200x488")
@@ -280,12 +1197,12 @@ color = Color(0.42, 0.26, 0.19, 1)
 polygon = PackedVector2Array(-600.0, -244.0, 600.0, -244.0, 600.0, 244.0, -600.0, 244.0)
 
 [node name="BossGate" type="StaticBody2D" parent="."]
-position = Vector2(6000.0, -360.0)
+position = Vector2(19080.0, -360.0)
 script = ExtResource("gate")
 start_open = true
 
 [node name="WallBossGate" type="StaticBody2D" parent="BossArena"]
-position = Vector2(6000.0, -672.0)
+position = Vector2(19080.0, -672.0)
 
 [node name="Shape" type="CollisionShape2D" parent="BossArena/WallBossGate"]
 shape = SubResource("Rect_64x400")
@@ -295,18 +1212,18 @@ color = Color(0.29, 0.18, 0.24, 1)
 polygon = PackedVector2Array(-32.0, -200.0, 32.0, -200.0, 32.0, 200.0, -32.0, 200.0)
 
 [node name="BossTrigger" type="Marker2D" parent="."]
-position = Vector2(6110.0, -360.0)
+position = Vector2(19190.0, -360.0)
 
 [node name="Boss" type="Node2D" parent="BossArena"]
-position = Vector2(6600.0, -620.0)
+position = Vector2(19680.0, -620.0)
 script = ExtResource("queen")
-arena_left = 6040.0
-arena_right = 7160.0
+arena_left = 19120.0
+arena_right = 20240.0
 floor_y = -360.0
 sky_y = -260.0
 
 [node name="WallRight" type="StaticBody2D" parent="Level"]
-position = Vector2(7232.0, -386.0)
+position = Vector2(20312.0, -386.0)
 
 [node name="Shape" type="CollisionShape2D" parent="Level/WallRight"]
 shape = SubResource("Rect_64x1028")
@@ -315,8 +1232,23 @@ shape = SubResource("Rect_64x1028")
 color = Color(0.23, 0.14, 0.2, 1)
 polygon = PackedVector2Array(-32.0, -514.0, 32.0, -514.0, 32.0, 514.0, -32.0, 514.0)
 
+[node name="GateIntro" type="StaticBody2D" parent="."]
+position = Vector2(-32.0, 0.0)
+script = ExtResource("gate")
+start_open = true
+
+[node name="BarIntro" type="Node2D" parent="."]
+position = Vector2(-170.0, 0.0)
+script = ExtResource("barintro")
+gate_path = NodePath("../GateIntro")
+girl_x = -300.0
+exit_x = 50.0
+opening = 2
+ending = false
+girl_sheet = ExtResource("girl2")
+
 [node name="Player" parent="." instance=ExtResource("player")]
-position = Vector2(96.0, -8.0)
+position = Vector2(-160.0, -26.0)
 
 [node name="LevelDirector" type="Node2D" parent="."]
 script = ExtResource("level")
@@ -324,7 +1256,7 @@ level_number = 2
 level_name = "SUNSET COAST"
 next_scene = "res://scene/design/level_3.tscn"
 kill_y = 400.0
-rank_times = Vector3(150, 210, 300)
+rank_times = Vector3(195, 265, 365)
 boss_path = NodePath("../BossArena/Boss")
 
 [node name="LiveReload" type="Node" parent="."]
