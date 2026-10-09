@@ -150,6 +150,10 @@ func _process(delta: float):
 	var bottom := center.y + view.y / 2.0
 	var lift := _lift(center.y, delta)
 	var boxes := _boxes()
+	var clear := []                       # nodes in "foreground_clear" (the blender): plants over them fade right out
+	for n in get_tree().get_nodes_in_group("foreground_clear"):
+		if n.has_method("foreground_rect"):
+			clear.append(n.foreground_rect())
 	for p: Array in _pieces:
 		var s: Sprite2D = p[0]
 		var anchor: float = p[1]
@@ -170,6 +174,8 @@ func _process(delta: float):
 		s.visible = true
 		s.global_position = pos
 		var target := SEE_THROUGH if _something_behind(pos, p[4], boxes) else 1.0
+		if _something_behind(pos, p[4], clear):
+			target = 0.0                 # something that must never be hidden (the blender): out of the way
 		if _indoors:
 			target = 0.0                 # underground: no jungle at the screen's edges
 		s.modulate.a = move_toward(s.modulate.a, target, FADE_SPEED * delta)

@@ -42,7 +42,7 @@ static func hurt_player(player: CharacterBody2D, box: Rect2, from_x: float) -> b
 	# no player health yet: flash red instead
 	player.modulate = Color(1, 0.35, 0.35)
 	player.create_tween().tween_property(player, "modulate", Color.WHITE, FruitMinion.PLAYER_SAFE_TIME)
-	FruitMinion.play_hurt_sound(player)
+	FruitMinion.play_hurt_sound(player, from_x)
 	return true
 
 

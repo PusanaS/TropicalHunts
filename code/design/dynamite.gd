@@ -15,6 +15,7 @@ extends Node2D
 enum Mode { WAITING, BURNING, FIZZING, BLOWN }
 
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
+const Achievements := preload("res://code/design/achievements.gd")
 const CinemaBars := preload("res://code/design/cinema_bars.gd")
 # a little arrow bouncing down at the wick's tip (Morgan's call, 2026-10-08: players got there and didn't know
 # what to do; the LIGHT THE FUSE! text over it was taken out, the arrow's enough). Drawn on the prompt layer so
@@ -387,6 +388,7 @@ func _spark(at: Vector2, vel: Vector2, life: float):
 # ---------- the blast ----------
 func _blast():
 	_set_mode(Mode.BLOWN)
+	Achievements.unlock(get_tree(), "bomb")
 	_release_player()                                          # you're free again: the throw takes you from here
 	_blast_t = _t
 	for b: StaticBody2D in _plugs:                             # the ground above opens up
@@ -721,7 +723,7 @@ func _update_pound(delta: float):
 
 
 # it hits: you land as the slam's shockwave (the pack around you takes it), a big shake, a beat of slow motion
-func _pound_impact(dir: float):
+func _pound_impact(_dir: float):
 	_pound = 0
 	_sprite.rotation = 0.0
 	player.set_physics_process(true)
@@ -800,11 +802,11 @@ func _draw_stash():
 		draw_rect(c[0], SIGN_RED)
 	# a bundle of five sticks, roped together, fuses joined at the top
 	for i in 5:
-		var x := float(i * 6)
-		draw_rect(Rect2(x, 7, 5, 16), STICK)
-		draw_rect(Rect2(x, 7, 1, 16), STICK_LIGHT)
-		draw_rect(Rect2(x + 4.0, 7, 1, 16), STICK_SHADE)
-		draw_rect(Rect2(x, 7, 5, 1), PAPER)
+		var sx := float(i * 6)
+		draw_rect(Rect2(sx, 7, 5, 16), STICK)
+		draw_rect(Rect2(sx, 7, 1, 16), STICK_LIGHT)
+		draw_rect(Rect2(sx + 4.0, 7, 1, 16), STICK_SHADE)
+		draw_rect(Rect2(sx, 7, 5, 1), PAPER)
 	for y in [11.0, 19.0]:
 		draw_rect(Rect2(-1, y, 31, 2), ROPE)
 		draw_rect(Rect2(-1, y + 1.0, 31, 1), FUSE_SHADE)

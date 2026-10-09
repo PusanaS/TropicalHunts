@@ -73,7 +73,7 @@ func _charging(delta: float, charge: float):
 	var center := feet + BODY
 	# flicker, brighter and brighter
 	var bright := 1.0 + 0.9 * charge
-	var on := int(Time.get_ticks_msec() / 50) % 2 == 0
+	var on := int(Time.get_ticks_msec() / 50.0) % 2 == 0
 	_sprite.self_modulate = Color(bright, bright * 0.95, 0.8) if on else Color.WHITE
 	_t_spark -= delta
 	if _t_spark <= 0.0:
@@ -165,7 +165,7 @@ func _debris(at: Vector2, amount: int):
 	for color: Color in DEBRIS:
 		var p := CPUParticles2D.new()
 		p.one_shot = true
-		p.amount = maxi(amount / DEBRIS.size(), 1)
+		p.amount = maxi(int(float(amount) / DEBRIS.size()), 1)
 		p.lifetime = 0.7
 		p.explosiveness = 1.0
 		p.direction = Vector2.UP

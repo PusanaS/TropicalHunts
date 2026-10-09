@@ -92,6 +92,8 @@ func _ready():
 # the vines spring aside when you brush through them, then swing back
 func _process(delta: float):
 	_t += delta
+	if not _on_screen():                 # (off screen: no vines to swing, nothing to redraw)
+		return
 	if player == null or not is_instance_valid(player):
 		player = get_tree().get_first_node_in_group("player") as CharacterBody2D
 	var body := Rect2()
@@ -106,6 +108,17 @@ func _process(delta: float):
 		v[4] = float(v[4]) + acc * delta
 		v[3] = clampf(float(v[3]) + float(v[4]) * delta, -1.2, 1.2)
 	queue_redraw()
+
+
+# is any of it in the camera's view (with room for the vines)? Off screen it skips its update and its redraw:
+# every overhang wall used to redraw every frame wherever it was
+func _on_screen() -> bool:
+	var cam := get_viewport().get_camera_2d()
+	if cam == null:
+		return true
+	var size := get_viewport_rect().size / cam.zoom
+	var view := Rect2(cam.get_screen_center_position() - size / 2.0, size).grow(96.0)
+	return view.intersects(Rect2(global_position + _r.position, _r.size))
 
 
 func _draw():

@@ -31,6 +31,7 @@ extends Node2D
 const Pixel := preload("res://code/design/pixel_font.gd")
 const CinemaBars := preload("res://code/design/cinema_bars.gd")
 const BlenderFinish := preload("res://code/design/blender_finish.gd")
+const Achievements := preload("res://code/design/achievements.gd")
 const GIRL_SHEET := preload("res://girl-Sheet.png")
 const GIRL_FEET := 96                             # her feet's row in each 128x128 cell
 const GIRL_FPS := 6.0
@@ -76,7 +77,16 @@ const HEART_LIFE := 1.6
 const HEART := [Color("e86a9a"), Color("b03a6a"), Color("f6b0c8")]   # the ♥ in her line: pink
 const HIGHLIGHT := [Color("f2c22e"), Color("d8901c"), Color("fff3b0")]  # {words} in braces: pineapple yellow
 const START_WAIT := 0.6                           # a beat before she speaks
-const TYPE_SPEED := 32.0                          # letters a second
+# the words come in one at a time, each popping in: up past full size, then settling (the professor's idea,
+# 2026-10-09, "more juicy"). A word's wait is WORD_GAP + WORD_PER_LETTER a letter, plus a beat after punctuation
+const WORD_GAP := 0.05                            # (faster, Morgan's call, 2026-10-09: were 0.08 / 0.015 / 0.16 / 0.08)
+const WORD_PER_LETTER := 0.009
+const PAUSE_STOP := 0.1                           # after . ! ?
+const PAUSE_COMMA := 0.05                         # after ,
+const POP_UP := 0.07                              # growing in, to POP_BIG...
+const POP_SETTLE := 0.13                          # ...then back down to normal size
+const POP_FROM := 0.3
+const POP_BIG := 1.45
 const WALK_SPEED := 120.0
 const SHUT_AT := 614.0                            # past this, the gate slams shut behind you
 const BUBBLE_GIRL := Vector2(0, -74)              # where her bubble points (from her feet)
@@ -109,7 +119,11 @@ var player: CharacterBody2D = null
 var _step := Step.WAIT
 var _t := 0.0
 var _line := 0
-var _shown := 0.0                                 # letters of the current line shown so far
+var _shown := 0.0                                 # letters of the current line shown so far (whole words)
+var _words: Array = []                            # the current line's words: [start, end (with its space), wait after]
+var _word_i := 0                                  # the next word to pop in
+var _word_wait := 0.0
+var _popped := {}                                 # a word's start (letter index) -> when it popped in (_t)
 var _gate: Node = null
 var _held := false
 var _girl := AnimatedSprite2D.new()
@@ -181,11 +195,11 @@ func _process(delta: float):
 				else:
 					_step = Step.TALK
 					_line = 0
-					_shown = 0.0
 					var level := get_tree().get_first_node_in_group("level")
 					if level and level.get("juice_clock"):
 						_lines = LINES.duplicate()
 						_lines.insert(WAIT_AFTER + 1, ["girl", WAIT_LINE % int(level.clock_start)])
+					_start_line()
 		Step.TALK:
 			_talking(delta)
 		Step.WALK:
@@ -228,19 +242,28 @@ func _pressed() -> bool:
 		or Input.is_action_just_pressed("attack_heavy")
 
 
-# a line types out (a press finishes it early), then waits for a press to go on to the next
+# a line comes in word by word, each popping in (a press brings the rest in at once), then waits for a press
+# to go on to the next
 func _talking(delta: float):
 	_send_red()
 	var text: String = _lines[_line][1]
 	var full := text.replace("\n", "").length()
 	if _shown < full:
-		_shown = minf(_shown + TYPE_SPEED * delta, full)
-		if _pressed():
+		_word_wait -= delta
+		var rush := _pressed()
+		while _word_i < _words.size() and (_word_wait <= 0.0 or rush):
+			var w: Array = _words[_word_i]
+			_popped[w[0]] = _t
+			_shown = w[1]
+			_word_wait += w[2]
+			_word_i += 1
+		if _word_i >= _words.size():
 			_shown = full
 		return
 	if _pressed():
 		_line += 1
-		_shown = 0.0
+		if _line < _lines.size():
+			_start_line()
 		if _line >= _lines.size():
 			if _outro:
 				_step = Step.DONE
@@ -321,7 +344,8 @@ func _run_ending(at: Vector2):
 	blender.global_position = Vector2(at.x + side * BLENDER_OFF, at.y)
 	_cam = Camera2D.new()
 	get_tree().current_scene.add_child(_cam)
-	_cam.global_position = Vector2(at.x + side * BLENDER_OFF * 0.7, at.y - 60.0)
+	_cam.global_position = Vector2(at.x + side * BLENDER_OFF * 0.7, at.y - 28.0)   # (lower, Morgan's call: was -60, so the
+	                                                                                 # floor and the juice on it show)
 	_cam.make_current()
 	await blender.done
 	await _back_to_bar()
@@ -364,8 +388,44 @@ func _back_to_bar():
 func _say(lines: Array):
 	_lines = lines
 	_line = 0
-	_shown = 0.0
+	_start_line()
 	_step = Step.TALK
+
+
+# a new line: nothing shown yet, its words lined up to pop in. Positions are letters of the line without its
+# line breaks (what _shown counts); a word's end takes in the space after it
+func _start_line():
+	_shown = 0.0
+	_words.clear()
+	_word_i = 0
+	_word_wait = 0.0
+	_popped.clear()
+	var flat := String(_lines[_line][1]).replace("\n", " ")     # (a break splits words like a space)
+	var i := 0
+	while i < flat.length():
+		if flat[i] == " ":
+			i += 1
+			continue
+		var start := i
+		while i < flat.length() and flat[i] != " ":
+			i += 1
+		var word := flat.substr(start, i - start)
+		var end := i
+		while end < flat.length() and flat[end] == " ":
+			end += 1
+		var plain := word.replace("{", "").replace("}", "").replace("[", "").replace("]", "")
+		var wait := WORD_GAP + WORD_PER_LETTER * plain.length()
+		if plain.ends_with(".") or plain.ends_with("!") or plain.ends_with("?"):
+			wait += PAUSE_STOP
+		elif plain.ends_with(","):
+			wait += PAUSE_COMMA
+		_words.append([_flat_index(start), _flat_index(end), wait])
+
+
+# a position in the line with its breaks as spaces -> the same letter counted without the breaks
+func _flat_index(i: int) -> int:
+	var text: String = _lines[_line][1]
+	return i - text.substr(0, i).count("\n")
 
 
 # ---------- the fail ending ----------
@@ -395,6 +455,7 @@ func _run_fail():
 	_step = Step.CHOICE
 	await _chose
 	if _choice == 0:
+		Achievements.unlock(get_tree(), "hard_worker")     # you're giving it another go (Morgan's call)
 		_say(RETRY_LINES)
 		await _talked
 		_try_again()
@@ -495,13 +556,39 @@ func _draw_talk():
 	_talk.draw_rect(Rect2(box.position, Vector2(box.size.x, 1)), accent)
 	for i in 4:                                               # the tail
 		_talk.draw_rect(Rect2(anchor.x - 3.0 + i, box.end.y + i, 7.0 - i * 2.0, 1), Pixel.INK if i == 3 else Color(0.1, 0.08, 0.12, 0.94))
-	var left := int(_shown)
 	var y := box.position.y + 5.0
+	var line_start := 0                                       # (letters before this line, without breaks)
+	var hi := false                                           # inside {highlight} / [red] carried across words
+	var red := false
 	for l in lines:
-		var part := l.substr(0, maxi(left, 0))
-		left -= l.length()
-		if part != "":
-			_draw_words(part, Vector2(box.position.x + 6.0, y))
+		var x := box.position.x + 6.0
+		var i := 0
+		while i < l.length():
+			if l[i] == " ":
+				x += Pixel.width(" ", 1) + 1.0
+				i += 1
+				continue
+			var start := i
+			while i < l.length() and l[i] != " ":
+				i += 1
+			var word := l.substr(start, i - start)
+			var at := line_start + start
+			var shown := at < int(_shown)
+			var marked := ("{" if hi and not word.begins_with("{") else "") + ("[" if red and not word.begins_with("[") else "") + word
+			for ch in word:                                   # (the state the next word starts in)
+				if ch == "{": hi = true
+				elif ch == "}": hi = false
+				elif ch == "[": red = true
+				elif ch == "]": red = false
+			var plain := marked.replace("[", "").replace("]", "")
+			var word_w := Pixel.width(plain, 1)
+			if shown:
+				_draw_popping(marked, Vector2(x, y), word_w, _t - float(_popped.get(at, -10.0)))
+				if marked.contains("["):                       # where the red words are (her clock line's 20 flies from here)
+					var before := marked.substr(0, marked.find("[")).replace("{", "").replace("}", "")
+					_red_at = Vector2(x + (Pixel.width(before, 1) + 1.0 if before != "" else 0.0), y)
+			x += word_w + 1.0
+		line_start += l.length()
 		y += 9.0
 	var full := String(_lines[_line][1]).replace("\n", "").length()
 	if _shown >= full:                                        # waiting for you: a little arrow, bouncing
@@ -534,6 +621,25 @@ func _draw_choice():
 	var nudge := roundf(absf(sin(_t * 6.0)) * 1.0)
 	var ax := (x_yes if _choice == 0 else x_no) - 7.0 + nudge
 	Pixel.draw_cells(_talk, Pixel.cells("→", Vector2(ax, y), 1), HIGHLIGHT)
+
+
+# one word popping in, `age` seconds after it came: it grows in past full size, then settles back (about its
+# centre), and stays put after
+func _draw_popping(word: String, at: Vector2, w: float, age: float):
+	var k := 1.0
+	if age < POP_UP:
+		var e := age / POP_UP
+		k = lerpf(POP_FROM, POP_BIG, 1.0 - (1.0 - e) * (1.0 - e))
+	elif age < POP_UP + POP_SETTLE:
+		var e := (age - POP_UP) / POP_SETTLE
+		k = lerpf(POP_BIG, 1.0, e * e * (3.0 - 2.0 * e))
+	if k == 1.0:
+		_draw_words(word, at)
+		return
+	var center := at + Vector2(w / 2.0, 3.5)
+	_talk.draw_set_transform(center, 0.0, Vector2(k, k))
+	_draw_words(word, Vector2(-w / 2.0, -3.5))
+	_talk.draw_set_transform(Vector2.ZERO)
 
 
 # a line's text: {words} in braces are pineapple yellow, a ♥ is pink, [words] in square brackets are red and shake
@@ -617,10 +723,19 @@ func _draw_back():
 	for i in 5:
 		_back.draw_line(Vector2(-80 + i * 40, -118), Vector2(-100 + i * 50, -90), STRAW_DARK, 1.0)
 	_back.draw_line(Vector2(-80, -118), Vector2(80, -118), STRAW_LIGHT, 1.0)
+	# the sign stands up on top of the roof, on two bamboo posts planted in the ridge (Morgan's call, 2026-10-09:
+	# it was on the thatch)
 	var title := "TIKI BAR"
 	var sw := Pixel.width(title, 1)
-	_back.draw_rect(Rect2(-sw / 2.0 - 4.0, -111, sw + 8.0, 11), WOOD)
-	Pixel.draw_cells(_back, Pixel.cells(title, Vector2(-roundf(sw / 2.0), -109), 1), [Pixel.MUSTARD, Pixel.ORANGE, Pixel.OFF_WHITE])
+	var board := Rect2(-roundf(sw / 2.0) - 5.0, -137, sw + 10.0, 12)
+	for px: float in [board.position.x + 5.0, board.end.x - 7.0]:
+		_back.draw_rect(Rect2(px - 1.0, board.end.y, 4, -118.0 - board.end.y + 1.0), Pixel.INK)
+		_back.draw_rect(Rect2(px, board.end.y, 2, -118.0 - board.end.y + 1.0), BAMBOO_DARK)
+	_back.draw_rect(board.grow(1.0), Pixel.INK)
+	_back.draw_rect(board, WOOD)
+	_back.draw_rect(Rect2(board.position, Vector2(board.size.x, 1)), WOOD_LIGHT)
+	_back.draw_rect(Rect2(board.position.x, board.end.y - 1.0, board.size.x, 1), WOOD.darkened(0.3))
+	Pixel.draw_cells(_back, Pixel.cells(title, Vector2(-roundf(sw / 2.0), board.position.y + 3.0), 1), [Pixel.MUSTARD, Pixel.ORANGE, Pixel.OFF_WHITE])
 
 
 # in front of you: the bamboo counter (you're behind it), with a pina colada on top at her end

@@ -1,10 +1,10 @@
 extends Area2D
 # What a fruit enemy leaves behind: one juice ingredient. It hops out of the enemy, then flies to the
 # player by itself and is picked up automatically (touching it works too).
-# There is no inventory yet (and juice isn't decided), so it only shows "+1 <fruit>".
+# There is no inventory yet (and juice isn't decided), so it just goes when it reaches you (it used to show
+# "+1 <fruit>": taken out, Morgan's call, 2026-10-09).
 # PLACEHOLDER look: the real juice designs are Violeta's.
 
-const SHOW_TIME := 0.8
 const TEXTURE: Texture2D = preload("res://scene/design/art/juice_drop.png")
 const POP := Vector2(60, -150)            # the little hop out of the enemy: random sideways, up
 const POP_GRAVITY := 500.0
@@ -14,7 +14,7 @@ const HOME_MAX_SPEED := 520.0
 const COLLECT_DIST := 10.0
 const PLAYER_MIDDLE := Vector2(0, -20)    # it flies to the middle of the player, not their feet
 
-var fruit_name := "Mango"
+var fruit_name := "Mango"                 # (unused now, but the enemies still set it)
 var color := Color(1.0, 0.6, 0.1)
 
 var _time := 0.0
@@ -48,14 +48,12 @@ func _collect():
 		return
 	_picked_at = _time
 	set_deferred("monitoring", false)
+	queue_free()
 
 
 func _process(delta: float):
 	_time += delta
-	if _picked_at >= 0.0:
-		if _time - _picked_at >= SHOW_TIME:
-			queue_free()
-	else:
+	if _picked_at < 0.0:
 		_fly(delta)
 	queue_redraw()
 
@@ -80,11 +78,6 @@ func _fly(delta: float):
 
 
 func _draw():
-	if _picked_at >= 0.0:
-		var t := (_time - _picked_at) / SHOW_TIME
-		var text_color := Color(0.12, 0.14, 0.2, 1.0 - t)
-		draw_string(ThemeDB.fallback_font, Vector2(-30, -8 - 20 * t), "+1 " + fruit_name, HORIZONTAL_ALIGNMENT_CENTER, 60, 8, text_color)
-		return
 	# a bobbing drop of juice, moved in whole pixels so the pixel art stays crisp
 	var bob := roundf(sin(_time * 4.0) * 1.5)
 	draw_texture(TEXTURE, Vector2(-3, -5 + bob))

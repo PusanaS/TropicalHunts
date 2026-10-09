@@ -533,16 +533,20 @@ func _respawn():
 # the player's been hit: a slap and an "ow" (Morgan's pick, 2026-10-04). Everything that hurts the player plays
 # it through here: the minions, EnemyKit.hurt_player (the boss, serpents, cacti, chilis...), the cactus you
 # gallop into and the shark's bite. Each one gets its own player in the level, so it's never cut off.
-static func play_hurt_sound(player: Node):
-	if player == null or not is_instance_valid(player) or player.get_parent() == null:
+# from_x: where the hit came from (the knockback throws you away from it); knock false: the hit throws you itself
+# (the shark's bite), so you're just dazed as you land
+static func play_hurt_sound(who: Node, from_x := NAN, knock := true):
+	if who == null or not is_instance_valid(who) or who.get_parent() == null:
 		return
 	var s := AudioStreamPlayer.new()
 	s.stream = HURT_SOUND
 	s.volume_db = HURT_SOUND_DB
 	s.pitch_scale = randf_range(0.96, 1.04)
-	player.get_parent().add_child(s)
+	who.get_parent().add_child(s)
 	s.finished.connect(s.queue_free)
 	s.play(HURT_SOUND_SKIP)
+	# every hit knocks you back and dazes you (Morgan's call, 2026-10-09): level.gd's player_hit
+	who.get_tree().call_group("level", "player_hit", from_x, knock)
 
 
 func _touch_player():
@@ -563,4 +567,4 @@ func _touch_player():
 	# no player health yet: flash red instead
 	player.modulate = Color(1, 0.35, 0.35)
 	player.create_tween().tween_property(player, "modulate", Color.WHITE, PLAYER_SAFE_TIME)
-	play_hurt_sound(player)
+	play_hurt_sound(player, global_position.x)

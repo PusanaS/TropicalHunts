@@ -13,6 +13,7 @@ extends StaticBody2D
 enum Mode { HOLDING, STRAINING, BURST }
 
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
+const Achievements := preload("res://code/design/achievements.gd")
 const Pixel := preload("res://code/design/pixel_font.gd")
 const MANGO := preload("res://scene/design/fruit_minion.tscn")
 const FruitMinion := preload("res://code/design/fruit_minion.gd")
@@ -258,6 +259,7 @@ func _snap():
 func _burst():
 	_mode = Mode.BURST
 	_mode_t = 0.0
+	Achievements.unlock(get_tree(), "dam")
 	_shape.set_deferred("disabled", true)
 	var t := _strain_sound.create_tween()
 	t.tween_property(_strain_sound, "volume_db", -40.0, 0.4)
@@ -333,20 +335,27 @@ func _process(_delta: float):
 		_end_hold(false)
 		return
 	var falling := false
-	var ready := false
+	var in_reach := false
 	var reach: float = player.get_script().COUNTER_RANGE if player else 0.0
 	for m in get_tree().get_nodes_in_group("dam_flood"):
 		if m.is_counterable():
 			falling = true
 			if player and m.global_position.distance_to(player.global_position) <= reach:
-				ready = true
+				in_reach = true
 				break
 	if (_released >= _crowd.size() and not falling) or _real() - _hold_start > HOLD_MAX:
 		_end_hold(true)                  # they've landed and you didn't counter
 		return
 	Engine.time_scale = HOLD_SCALE
-	_prompt_on = ready
+	_prompt_on = in_reach
 	_prompt.queue_redraw()
+	# Q counters even mid-W here (Morgan's call, 2026-10-09): the counter normally can't cut into a W (or a wall
+	# knockback), and in this slow motion one swing would lock you out for ages. With one in reach, the W is
+	# dropped and the counter starts (only then: an early Q doesn't throw your swing away)
+	if in_reach and Input.is_action_just_pressed("attack_light") and player.state in player.get_script().COUNTER_BLOCKED:
+		var states: Dictionary = player.get_script().State
+		player._set_state(states["IDLE"])
+		player._try_counter()
 
 
 func _end_hold(ease_out: bool):

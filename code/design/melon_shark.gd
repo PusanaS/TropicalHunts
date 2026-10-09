@@ -29,6 +29,7 @@ extends Node2D
 @export var max_hp := 3
 
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
+const Achievements := preload("res://code/design/achievements.gd")
 const NoDamagePop := preload("res://code/design/no_damage_pop.gd")
 const FruitMinion := preload("res://code/design/fruit_minion.gd")
 const JuiceSpray := preload("res://code/design/juice_spray.gd")
@@ -66,6 +67,7 @@ const KNOCK_TIME := 0.55
 const FLING_SPIN := 14.0
 const FLOP_EVERY := Vector2(0.35, 0.6)
 const STRAND_GRACE := 0.3                         # just stranded: the wave that drained it doesn't count as a hit
+												  # (yours always do: a gallop's flash right after the drain was lost)
 const K := 1.5                                    # its size (Morgan wanted it bigger): the art is drawn this much up
 const BODY := Rect2(-42, -15, 84, 30)             # its hurtbox, around its middle
 const MOUTH := Rect2(21, -13, 30, 27)             # the bite (facing right)
@@ -88,6 +90,8 @@ const SHADOW := Color(0.05, 0.16, 0.28, 0.5)
 enum S { SWIM, TELL, LEAP, FLUNG, STRANDED, DEAD }
 
 var player: CharacterBody2D = null
+var _passed := false                              # you got past it alive (up onto the far bank)
+var _met := false                                 # you've come up to its river (so starting past it doesn't count)
 var state := S.SWIM
 var hp := 3
 var facing := 1
@@ -148,6 +152,11 @@ func _physics_process(delta: float):
 	queue_redraw()
 	if state == S.DEAD:
 		return
+	if player and player.global_position.x > range_left - 250.0 and player.global_position.x < range_right:
+		_met = true
+	if _met and not _passed and player and player.global_position.x > range_right + 140.0 and player.is_on_floor():
+		_passed = true                                    # past it without killing it
+		Achievements.unlock(get_tree(), "shark")
 	if _w.is_empty() and not _find_water():
 		return
 	if player == null or not is_instance_valid(player):
@@ -361,7 +370,7 @@ func _bite():
 	FruitMinion._player_safe_until = Time.get_ticks_msec() / 1000.0 + FruitMinion.PLAYER_SAFE_TIME
 	player.modulate = Color(1, 0.35, 0.35)
 	player.create_tween().tween_property(player, "modulate", Color.WHITE, FruitMinion.PLAYER_SAFE_TIME)
-	FruitMinion.play_hurt_sound(player)
+	FruitMinion.play_hurt_sound(player, global_position.x, false)   # (its throw stands: dazed as you land)
 	player._shake(6.0, 0.25)
 	_lb.splash(_w, p.x, 16, 240.0)
 
@@ -476,15 +485,16 @@ func _check_player_hits():
 	var light := damage < 3                       # Q (and the light slam): it clangs off the rind
 	if not light and state != S.STRANDED:         # a W does nothing either while it's in its water (no pop for
 		_no_damage(global_position.y)             # take_hit: the drain's wall shouldn't say it)
-	_hit(damage, push, light, light)
+	_hit(damage, push, light, light, true)
 
 
 # something hit it (a wave, the flash, a spike): no clang, it's not a blade
 func take_hit(damage: int, push: Vector2):
-	_hit(damage, push, damage < 3, false)
+	var yours: bool = player != null and player.get("flashing") == true   # (the Thunderclap flash's hits come this way)
+	_hit(damage, push, damage < 3, false, yours)
 
 
-func _hit(damage: int, push: Vector2, light: bool, clang: bool):
+func _hit(damage: int, push: Vector2, light: bool, clang: bool, yours := false):
 	var dir := signf(push.x)
 	if dir == 0.0:
 		dir = signf(global_position.x - player.global_position.x) if player else float(-facing)
@@ -494,7 +504,7 @@ func _hit(damage: int, push: Vector2, light: bool, clang: bool):
 		_clang(global_position + Vector2(-dir * BODY.size.x * 0.3, -6.0))
 	match state:
 		S.STRANDED:
-			if _time < STRAND_GRACE:
+			if _time < STRAND_GRACE and not yours:
 				return
 			if light:                             # only a W kills it: Q just makes it flop
 				_vel = Vector2(dir * 40.0, -160.0)

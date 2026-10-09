@@ -175,7 +175,7 @@ const WALL_IMPACT_PITCH := 0.95     # a bit higher than the boss's (0.8): the pl
 const KNOCKBACK_PUSH := Vector2(180, -200)    # back and up
 const KNOCKBACK_IMPACT_TIME := 0.08            # squashed flat against the wall, flashing white
 const KNOCKBACK_TILT := 0.2                    # radians: how far it leans back while flying (BOOM's frame already leans)
-const KNOCKBACK_DAZE := 0.5                    # dazed on the ground before control returns (one STUN loop; was 0.3)
+const KNOCKBACK_DAZE := 1.0                    # dazed on the ground before control returns (two STUN loops; Morgan's call, 2026-10-09: was 0.5, before that 0.3)
 # BOOM's extra frames (PsVxp.png, 128x128 cells like PsV3.png): 1 edge grab, 2 knockback, 3-6 stun (stars drawn in)
 const EXTRA_SHEET := preload("res://PsVxp.png")
 const STUN_FPS := 8.0

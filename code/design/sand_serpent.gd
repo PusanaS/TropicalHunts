@@ -55,12 +55,11 @@ const STRIKE_TIME := 0.16
 const HOLD_TIME := 0.14               # stretched out after the strike (still counterable)
 const RECOIL_TIME := 0.28
 # its bite drags you down (Morgan's call, 2026-10-08): it hauls you straight back to where its body comes out of
-# the sand, then pulls you right under. You're back at the last checkpoint (OOPS!), and on the juice clock it
-# costs PENALTY seconds (a red "-5s" flies off to the countdown).
+# the sand, then pulls you right under. You're back at the last checkpoint (OOPS!), dazed, which on the juice
+# clock costs level.gd's daze_penalty (a red "-5s" flies off to the countdown; 2026-10-09).
 const DRAG_TIME := 0.32
 const DRAG_TO := Vector2(0, -12)      # the head gets here with you (just over its root)...
 const PULL_TIME := 0.4                # ...then pulls you down under the sand
-const PENALTY := 5.0
 const REPEL_TIME := 0.35              # knocked back by a hit, then it dives
 # Q's knock: the head whips way back and up, chin in the air, overshoots, wobbles dazed, then comes again
 # (Morgan wanted it to really knock the head back)
@@ -216,9 +215,9 @@ func _physics_process(delta: float):
 	_flash = maxf(_flash - delta, 0.0)
 	_geyser = maxf(_geyser - delta * 4.0, 0.0)
 	_update_bits(delta)
-	for tr: Array in _trail:
-		tr[1] += delta
-	_trail = _trail.filter(func(tr): return tr[1] < 0.6)
+	for seg: Array in _trail:
+		seg[1] += delta
+	_trail = _trail.filter(func(seg): return seg[1] < 0.6)
 	if state == State.DEAD:
 		_splat = maxf(_splat - delta * 0.25, 0.0)
 		queue_redraw()
@@ -450,7 +449,7 @@ func _bite():
 		_set_state(State.DRAG)
 
 
-# you've gone under: the sand closes over you, you're sent back to the checkpoint (minus PENALTY seconds on the
+# you've gone under: the sand closes over you, you're sent back to the checkpoint dazed (which costs time on the
 # juice clock), and it dives
 func _end_drag():
 	_dragging = false
@@ -461,9 +460,8 @@ func _end_drag():
 		var states: Dictionary = player.get_script().State
 		player._set_state(states["IDLE"])
 		player._shake(6.0, 0.25)
-		get_tree().call_group("level", "juice_penalty", PENALTY, global_position + Vector2(0, -30))
-		if get_tree().get_first_node_in_group("level"):
-			get_tree().call_group("level", "respawn_player")
+		if get_tree().get_first_node_in_group("level"):         # back dazed, which costs the time (level.gd's
+			get_tree().call_group("level", "respawn_player", true)   # daze_penalty, in place of PENALTY: Morgan's call)
 		else:                                             # (no level here: you're spat back out)
 			player.global_position = global_position + Vector2(0, -4)
 	_dive(RESURFACE)
@@ -696,9 +694,9 @@ func _c(col: Color) -> Color:
 
 func _draw():
 	# the trail it ploughs along the surface
-	for tr: Array in _trail:
-		var a := 1.0 - float(tr[1]) / 0.6
-		var x := roundf(float(tr[0]) - global_position.x)
+	for seg: Array in _trail:
+		var a := 1.0 - float(seg[1]) / 0.6
+		var x := roundf(float(seg[0]) - global_position.x)
 		draw_rect(Rect2(x - 2.0, SURFACE - 1.0, 4, 1), Color(SAND_SWIRL, a))
 	if state == State.DEAD:
 		if _splat > 0.0:                                  # a creamy puddle on the sand

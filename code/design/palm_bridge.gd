@@ -15,6 +15,7 @@ signal fallen                                     # it just hit the ground
 @export var fall_left := true
 
 const Cactus := preload("res://code/design/cactus.gd")
+const Achievements := preload("res://code/design/achievements.gd")
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
 const JuiceSpray := preload("res://code/design/juice_spray.gd")
 const Pixel := preload("res://code/design/pixel_font.gd")
@@ -49,8 +50,6 @@ const BOUNCE := 0.015
 const LOOK_Y := -100.0                            # while it falls, the view follows the trunk where it crosses this height
 const ENEMY_HEIGHT := 24.0                        # it squashes a Mango once it comes down this low over its feet
 const BIT_GRAVITY := 600.0
-const POP_LIFE := 0.9
-const POP_COLORS := [Pixel.ORANGE, Pixel.RUST, Pixel.MUSTARD]
 
 const BARK := Color("9a6a3a")
 const BARK_LIGHT := Color("c08a52")
@@ -75,10 +74,9 @@ var _sway := 0.0                                  # it shudders when a spike goe
 var _pts := PackedVector2Array()                  # the trunk's middle line, foot to crown (local)
 var _stuck: Array = []                            # spikes in the trunk: [distance along it, angle against it]
 var _bits: Array = []                             # chips, splinters and coconuts flying: [pos, vel, colour, life, size]
-var _pops: Array = []                             # "+1"s floating up off the Mangos it squashes: [pos, age]
 var _fronds: Array = []                           # [angle off the trunk (degrees), length, shade]
 var _shape := CollisionShape2D.new()
-var _fx := Node2D.new()                           # dust and "+1"s, in front of the sand
+var _fx := Node2D.new()                           # dust, in front of the sand
 var _thunk_sound := AudioStreamPlayer.new()
 var _crack_sound := AudioStreamPlayer.new()
 var _creak_sound := AudioStreamPlayer.new()
@@ -100,7 +98,6 @@ func _ready():
 	add_child(_shape)
 	_fx.z_as_relative = false
 	_fx.z_index = 4
-	_fx.draw.connect(_draw_fx)
 	add_child(_fx)
 	for pair in [[_thunk_sound, IMPACT_SOUND, THUNK_DB], [_crack_sound, IMPACT_SOUND, CRACK_DB],
 			[_creak_sound, CREAK_SOUND, CREAK_DB], [_slam_sound, SLAM_SOUND, SLAM_DB]]:
@@ -147,14 +144,8 @@ func _physics_process(delta: float):
 	if _state == CREAKING or _state == FALLING:               # the view rides along with it
 		Cactus.chain_follow(_look_x())
 	_update_bits(delta)
-	var popping := not _pops.is_empty()
-	for pop: Array in _pops:
-		pop[1] += delta
-	_pops = _pops.filter(func(pop): return pop[1] < POP_LIFE)
 	if moving:
 		queue_redraw()
-	if popping:
-		_fx.queue_redraw()
 
 
 # ---------- the trunk ----------
@@ -315,6 +306,7 @@ func _squash():
 func _slam():
 	_state = BOUNCING
 	_time = 0.0
+	Achievements.unlock(get_tree(), "timber")
 	_k = 0.0
 	_pts = _trunk(0.0)
 	_squash()
@@ -357,7 +349,7 @@ func _lift_player():
 		player.velocity.y = minf(player.velocity.y, 0.0)
 
 
-# a Mango it squashed: it bursts into juice, and a "+1" floats up off it (as the cactus spikes do)
+# a Mango it squashed: it bursts into juice (no "+1" floating up any more, as with the cactus spikes)
 func _juice_pop(e: Node2D):
 	var spray: Node2D = JuiceSpray.new()
 	spray.color = e.juice_color if "juice_color" in e else Color(0.91, 0.54, 0.13)
@@ -367,7 +359,6 @@ func _juice_pop(e: Node2D):
 	spray.check_ground = true                       # (a Mango up on a rock pillar: no puddles in mid-air)
 	spray.position = get_parent().to_local(e.global_position + Vector2(0, -8))
 	get_parent().add_child(spray)
-	_pops.append([e.global_position - global_position + Vector2(0, -34), 0.0])
 
 
 func _burst(at: Vector2, color: Color, amount: int, speed: float):
@@ -507,10 +498,3 @@ func _draw_crown(c: Vector2, dir: float):
 			draw_circle(nut, 2.0, NUT)
 			draw_rect(Rect2(nut + Vector2(-1, -1), Vector2.ONE), NUT_LIGHT)
 
-
-# the "+1"s off the Mangos it squashed, floating up and fading
-func _draw_fx():
-	for pop: Array in _pops:
-		var k: float = pop[1] / POP_LIFE
-		var at: Vector2 = pop[0] + Vector2(-5, -roundf(26.0 * (1.0 - (1.0 - k) * (1.0 - k))))
-		Pixel.draw_cells(_fx, Pixel.cells("+1", at.round(), 1), POP_COLORS, 1.0 - clampf((k - 0.6) / 0.4, 0.0, 1.0))

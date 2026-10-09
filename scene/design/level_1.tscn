@@ -365,6 +365,11 @@ shape = SubResource("Rect_1220x64")
 color = Color(0.22, 0.25, 0.32, 1)
 polygon = PackedVector2Array(-610.0, -32.0, 610.0, -32.0, 610.0, 32.0, -610.0, 32.0)
 
+[node name="WallMineShaft" type="StaticBody2D" parent="Level"]
+
+[node name="Shape" type="CollisionPolygon2D" parent="Level/WallMineShaft"]
+polygon = PackedVector2Array(5040, 0, 5085, 6, 5130, 22, 5440, 286, 5480, 312, 5520, 320, 5520, 384, 5040, 384)
+
 [node name="SandBedMine" type="StaticBody2D" parent="Level"]
 position = Vector2(6680.0, 352.0)
 
@@ -452,6 +457,7 @@ look = "sand"
 [node name="Cactus1" type="Node2D" parent="Hazards"]
 position = Vector2(8590.0, 0.0)
 script = ExtResource("cactus")
+arrow = true
 nappers = Array[NodePath]([NodePath("../../Enemies/MangoNap1"), NodePath("../../Enemies/MangoNap2"), NodePath("../../Enemies/MangoNap3"), NodePath("../../Enemies/MangoNap4")])
 
 [node name="Cactus2" type="Node2D" parent="Hazards"]
@@ -648,7 +654,7 @@ color = Color(0.33, 0.37, 0.48, 1)
 polygon = PackedVector2Array(-280.0, -128.0, 280.0, -128.0, 280.0, 128.0, -280.0, 128.0)
 
 [node name="MangoLedge1" parent="Enemies" groups=["counter_path"] instance=ExtResource("mango")]
-position = Vector2(11040.0, -64.0)
+position = Vector2(11016.0, -64.0)
 respawn_time = 0.0
 patrol_range = 6.0
 sight_range = 260.0
@@ -656,19 +662,22 @@ sight_height = 100.0
 sight_all_round = true
 
 [node name="MangoLedge2" parent="Enemies" groups=["counter_path"] instance=ExtResource("mango")]
-position = Vector2(11220.0, -128.0)
+position = Vector2(11196.0, -128.0)
 respawn_time = 0.0
 patrol_range = 6.0
+sight_height = 100.0
 
 [node name="MangoLedge3" parent="Enemies" groups=["counter_path"] instance=ExtResource("mango")]
-position = Vector2(11400.0, -192.0)
+position = Vector2(11376.0, -192.0)
 respawn_time = 0.0
 patrol_range = 6.0
+sight_height = 100.0
 
 [node name="MangoLedge4" parent="Enemies" groups=["counter_path"] instance=ExtResource("mango")]
-position = Vector2(11580.0, -256.0)
+position = Vector2(11556.0, -256.0)
 respawn_time = 0.0
 patrol_range = 6.0
+sight_height = 100.0
 
 [node name="MangoPlateau1" parent="Enemies" instance=ExtResource("mango")]
 position = Vector2(11700.0, -256.0)
@@ -710,6 +719,7 @@ reseal_time = 0.0
 
 [node name="WallGateFinal" type="StaticBody2D" parent="Level"]
 position = Vector2(13200.0, -312.0)
+script = ExtResource("overhang")
 
 [node name="Shape" type="CollisionShape2D" parent="Level/WallGateFinal"]
 shape = SubResource("Rect_64x400")
@@ -732,6 +742,8 @@ respawn_time = 0.0
 
 [node name="WallRight" type="StaticBody2D" parent="Level"]
 position = Vector2(14448.0, -192.0)
+script = ExtResource("overhang")
+standing = true
 
 [node name="Shape" type="CollisionShape2D" parent="Level/WallRight"]
 shape = SubResource("Rect_64x640")
@@ -758,6 +770,8 @@ script = ExtResource("level")
 level_number = 1
 level_name = "JUNGLE RUN"
 kill_y = 400.0
+climb_x = Vector2(10900, 11540)
+climb_top = -256.0
 rank_times = Vector3(60, 90, 120)
 boss_path = NodePath("../BossArena/Boss")
 boss_title = "PINA COLADA"

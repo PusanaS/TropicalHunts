@@ -1,6 +1,6 @@
 extends Node2D
-# THE BLENDER (level 1's ending, Morgan's idea, 2026-10-08): when the Pina Colada boss is beaten, a retro blender
-# drops in where it fell. All the juice lying about the fight (every drop, chunk and puddle of the boss's
+# THE BLENDER (level 1's ending, Morgan's idea, 2026-10-08): when the Pina Colada boss is beaten, a tiki blender
+# (Morgan's call, 2026-10-09: in the tropical theme; it was a retro cream one) drops in where it fell. All the juice lying about the fight (every drop, chunk and puddle of the boss's
 # juice_spray.gd effects) lifts off the floor one by one and arcs into the jar, which fills up as they land. The
 # lid slams on, it whirs (the liquid spins into a whirlpool and bubbles, the jar shakes), then the jar tips and
 # pours into a hurricane glass, the liquid staying level and running out of the spout. The glass gets a
@@ -50,13 +50,7 @@ const PIVOT := Vector2(15, -63)                   # the spout corner it tips abo
 const GLASS_IN := [Vector2(-5, -27), Vector2(5, -27), Vector2(6, -21), Vector2(2, -15), Vector2(3, -11), Vector2(1, -8),
 	Vector2(-1, -8), Vector2(-3, -11), Vector2(-2, -15), Vector2(-6, -21)]                  # a hurricane glass's bowl
 
-const CREAM := Color("efe6d4")
-const CREAM_SHADE := Color("c9bba2")
-const CHROME := Color("b9c2c8")
 const CHROME_DARK := Color("7d868c")
-const DIAL := Color("c43a2a")
-const LID := Color("3a3442")
-const LID_LIGHT := Color("5a5266")
 const GLASS_TINT := Color(0.78, 0.9, 0.96, 0.22)
 const GLASS_EDGE := Color(0.88, 0.95, 0.98, 0.95)
 const SHINE := Color(1, 1, 1, 0.45)
@@ -66,6 +60,19 @@ const JUICE_LIGHT := Color("fff3cf")
 const JUICE_DARK := Color("d9b65e")
 const UMBRELLA := Color("e86a9a")
 const LEAF := Color("76964a")
+const LEAF_DARK := Color("4f6e2e")
+# the tiki blender
+const WOOD := Color("6b4424")
+const WOOD_DARK := Color("4a2e18")
+const WOOD_LIGHT := Color("8e5c30")
+const BAMBOO := Color("b8a356")
+const BAMBOO_DARK := Color("7d6c32")
+const BAMBOO_LIGHT := Color("d8c77a")
+const HIBISCUS := Color("e8406a")
+const HIBISCUS_LIGHT := Color("f6a0b8")
+const COCONUT := Color("5a3a22")
+const LID_GOLD := Color("d8a23a")
+const LID_GOLD_DARK := Color("a8741e")
 
 enum Phase { DROP, FILL, LID, BLEND, TIP, POUR, GARNISH, HOLD, DONE }
 
@@ -93,6 +100,7 @@ var _ding := AudioStreamPlayer.new()
 
 func _ready():
 	z_index = 5
+	add_to_group("foreground_clear")              # the foreground's plants clear out of the way (foreground.gd)
 	_h.resize(COLUMNS)
 	_v.resize(COLUMNS)
 	for s: Array in [[_motor, MOTOR_SOUND, -4.0], [_thud, IMPACT_SOUND, -6.0], [_plip, PLIP_SOUND, -14.0], [_ding, DING_SOUND, -8.0]]:
@@ -279,7 +287,10 @@ func _liquid(inside: PackedVector2Array, amount: float, jar_x: float, whirl: flo
 			a = mid
 		else:
 			b = mid
-	return [Geometry2D.intersect_polygons(inside, _below((a + b) / 2.0, jar_x, whirl, inside)), (a + b) / 2.0]
+	# (never above the brim: a completely full glass found its level 8px over it, and the light line along the
+	# drink's surface floated in the air above the glass)
+	var level := maxf((a + b) / 2.0, lo)
+	return [Geometry2D.intersect_polygons(inside, _below(level, jar_x, whirl, inside)), level]
 
 
 func _below(level: float, jar_x: float, whirl: float, inside: PackedVector2Array) -> PackedVector2Array:
@@ -315,9 +326,16 @@ func _surface_y_local() -> float:
 
 
 # ---------- drawing ----------
+# where it is, for foreground.gd: plants over it fade right out (it was hidden behind them sometimes). Big
+# enough for the jar tipped over and the glass on either side
+func foreground_rect() -> Rect2:
+	return Rect2(global_position + Vector2(-64, -112), Vector2(128, 118))
+
+
 func _draw():
 	var shake := Vector2(roundf(sin(_t * 70.0)), roundf(cos(_t * 55.0))) * minf(_mixed * 3.0, 1.0) if _phase == Phase.BLEND else Vector2.ZERO
 	var at := Vector2(0, _y) + shake
+	_draw_shadows(at)
 	_draw_glass()
 	_draw_base(at)
 	_draw_jar(at)
@@ -329,27 +347,70 @@ func _draw():
 		draw_rect(Rect2((b[0] as Vector2).round(), Vector2(2, 2)), Color(c, clampf(float(b[3]) * 4.0, 0.0, 1.0)))
 
 
-# a retro cream blender base: chrome trim, a red dial (it spins while it runs), two buttons, little feet
+# so it pops out (the professor's note, 2026-10-09): a shadow on the ground under it (small and faint while it
+# drops in, spreading and darkening as it lands) and under the glass, and a drop shadow behind the blender itself
+func _draw_shadows(at: Vector2):
+	var land := 1.0 - clampf(-_y / 150.0, 0.0, 1.0)            # 0 high up .. 1 landed
+	var a := lerpf(0.15, 0.55, land)                          # (stronger, Morgan's call: it didn't show)
+	for row in 4:                                            # a stepped ellipse on the floor, widest at its line
+		var half := roundf(lerpf(12.0, 32.0, land) * [0.75, 1.0, 0.85, 0.5][row])
+		draw_rect(Rect2(-half, -2.0 + row, half * 2.0, 1), Color(Pixel.INK, a))
+	var g := Vector2(side * GLASS_AT, 0)
+	draw_rect(Rect2(g.x - 9.0, -1, 18, 1), Color(Pixel.INK, 0.4))   # and under the glass
+	draw_rect(Rect2(g.x - 6.0, 0, 12, 1), Color(Pixel.INK, 0.3))
+	var drop := Vector2(4, 3)                                # behind it: its shape, down and to the right
+	var base := PackedVector2Array()
+	for p: Vector2 in BASE:
+		base.append(at + p + drop)
+	draw_colored_polygon(base, Color(Pixel.INK, 0.55))
+	var jar := PackedVector2Array()
+	for p: Vector2 in JAR_OUT:
+		jar.append(_jar_xf(p, at) + drop)
+	draw_colored_polygon(jar, Color(Pixel.INK, 0.45))
+	var bowl := PackedVector2Array()
+	for p: Vector2 in GLASS_IN:
+		bowl.append(g + p + Vector2(3, 2))
+	draw_colored_polygon(bowl, Color(Pixel.INK, 0.35))
+
+
+# a carved tiki base: dark wood with its grain, a bamboo band round the top, a tiki face (its eyes glow and its
+# mouth chatters while it blends), coconut-half feet and a hibiscus flower tucked in the band
 func _draw_base(at: Vector2):
 	var base := PackedVector2Array()
 	for p: Vector2 in BASE:
 		base.append(at + p)
-	draw_colored_polygon(base, CREAM)
+	draw_colored_polygon(base, WOOD)
+	draw_rect(Rect2(at + Vector2(10, -14), Vector2(5, 13)), WOOD_DARK)          # the shaded side
+	for gx: float in [-12.0, -7.0, 8.0]:                                         # grain
+		draw_line(at + Vector2(gx, -13), at + Vector2(gx + 1.0, -3), WOOD_LIGHT, 1.0)
 	draw_polyline(base + PackedVector2Array([base[0]]), Pixel.INK, 1.0)
-	draw_rect(Rect2(at + Vector2(-15, -17), Vector2(30, 3)), CHROME)
-	draw_rect(Rect2(at + Vector2(-15, -14), Vector2(30, 1)), CHROME_DARK)
-	draw_rect(Rect2(at + Vector2(13, -13), Vector2(4, 12)), CREAM_SHADE)
-	draw_rect(Rect2(at + Vector2(-17, -2), Vector2(6, 2)), Pixel.INK)
-	draw_rect(Rect2(at + Vector2(11, -2), Vector2(6, 2)), Pixel.INK)
-	var dial := at + Vector2(0, -8)
-	draw_circle(dial, 4.0, Pixel.INK)
-	draw_circle(dial, 3.0, DIAL)
-	var a := _t * 20.0 if _phase == Phase.BLEND else -0.8
-	draw_line(dial, dial + Vector2.from_angle(a) * 2.5, Pixel.WHITE, 1.0)
-	for bx: float in [-10.0, 8.0]:
-		var lit: bool = _phase == Phase.BLEND and bx > 0.0
-		draw_rect(Rect2(at + Vector2(bx, -10), Vector2(3, 3)), Pixel.INK)
-		draw_rect(Rect2(at + Vector2(bx + 0.5, -9.5), Vector2(2, 2)), Pixel.ORANGE if lit else CHROME)
+	var band := Rect2(at + Vector2(-16, -18), Vector2(32, 4))                    # the bamboo band
+	draw_rect(band.grow(1.0), Pixel.INK)
+	draw_rect(band, BAMBOO)
+	draw_rect(Rect2(band.position, Vector2(band.size.x, 1)), BAMBOO_LIGHT)
+	for nx: float in [-9.0, 0.0, 9.0]:
+		draw_rect(Rect2(at + Vector2(nx, -18), Vector2(1, 4)), BAMBOO_DARK)
+	var blending := _phase == Phase.BLEND
+	var glow := Pixel.ORANGE if blending and int(_t * 12.0) % 2 == 0 else (Pixel.MUSTARD if blending else WOOD_LIGHT)
+	draw_rect(Rect2(at + Vector2(-10, -13), Vector2(20, 1)), WOOD_DARK)        # the brow
+	for ex: float in [-9.0, 3.0]:                                                # the eyes
+		draw_rect(Rect2(at + Vector2(ex, -12), Vector2(6, 4)), Pixel.INK)
+		draw_rect(Rect2(at + Vector2(ex + 1.0, -11), Vector2(4, 2)), glow)
+		draw_rect(Rect2(at + Vector2(ex + 2.0, -11), Vector2(2, 2)), Pixel.INK)
+	draw_rect(Rect2(at + Vector2(-1, -8), Vector2(2, 2)), WOOD_DARK)            # the nose
+	var open := 4.0 if blending and int(_t * 16.0) % 2 == 0 else 3.0           # the grin (chattering)
+	draw_rect(Rect2(at + Vector2(-7, -6), Vector2(14, open + 1.0)), Pixel.INK)
+	for tx in 4:
+		draw_rect(Rect2(at + Vector2(-6.0 + tx * 3.0, -5), Vector2(2, 1)), Pixel.WHITE)
+	draw_rect(Rect2(at + Vector2(-1, -6.0 + open), Vector2(2, 1)), HIBISCUS)    # the tongue
+	for fx: float in [-16.0, 11.0]:                                              # coconut feet
+		draw_rect(Rect2(at + Vector2(fx, -2), Vector2(6, 2)), COCONUT)
+		draw_rect(Rect2(at + Vector2(fx + 1.0, -2), Vector2(4, 1)), WOOD_LIGHT)
+	var f := at + Vector2(-14, -19)                                             # the hibiscus
+	for off in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 2), Vector2(-1, -1), Vector2(1, 1)]:
+		draw_rect(Rect2(f + off - Vector2(1, 1), Vector2(2, 2)), HIBISCUS)
+	draw_rect(Rect2(f + Vector2(-2, -2), Vector2(1, 1)), HIBISCUS_LIGHT)
+	draw_rect(Rect2(f, Vector2(1, 1)), Pixel.MUSTARD)
 
 
 # the glass jar: a chrome collar, the blades, the liquid, the glass with its shine, measuring marks and a
@@ -363,8 +424,10 @@ func _draw_jar(at: Vector2):
 		inner.append(_jar_xf(p, at))
 	# collar
 	var collar := PackedVector2Array([_jar_xf(Vector2(-12, -17), at), _jar_xf(Vector2(12, -17), at), _jar_xf(Vector2(11, -21), at), _jar_xf(Vector2(-11, -21), at)])
-	draw_colored_polygon(collar, CHROME)
+	draw_colored_polygon(collar, BAMBOO)                       # a bamboo collar
 	draw_polyline(collar + PackedVector2Array([collar[0]]), Pixel.INK, 1.0)
+	for nx: float in [-6.0, 6.0]:
+		draw_line(_jar_xf(Vector2(nx, -17), at), _jar_xf(Vector2(nx, -21), at), BAMBOO_DARK, 1.0)
 	# the glass, behind the liquid
 	draw_colored_polygon(outer, GLASS_TINT)
 	# blades (under the liquid when it's full)
@@ -404,30 +467,69 @@ func _draw_jar(at: Vector2):
 		draw_line(_jar_xf(Vector2(8.0 + (my + 22.0) * -0.1 - half, my), at), _jar_xf(Vector2(10.0 + (my + 22.0) * -0.1, my), at), SHINE, 1.0)
 	var handle := PackedVector2Array([_jar_xf(Vector2(-14, -56), at), _jar_xf(Vector2(-21, -54), at),
 		_jar_xf(Vector2(-21, -32), at), _jar_xf(Vector2(-12, -29), at)])
-	draw_polyline(handle, Pixel.INK, 3.0)
-	draw_polyline(handle, GLASS_EDGE, 1.0)
+	draw_polyline(handle, Pixel.INK, 4.0)                      # a bamboo handle
+	draw_polyline(handle, BAMBOO, 2.0)
+	for hy: float in [-48.0, -40.0]:
+		draw_line(_jar_xf(Vector2(-22, hy), at), _jar_xf(Vector2(-19, hy), at), BAMBOO_DARK, 1.0)
 	# the spout lip
 	draw_line(_jar_xf(Vector2(13, -65), at), _jar_xf(Vector2(17, -67), at), Pixel.INK, 2.0)
 	# the lid (on while it blends)
 	if _phase == Phase.LID or _phase == Phase.BLEND:
 		var drop := (1.0 - minf(_pt / LID_TIME, 1.0)) * 20.0 if _phase == Phase.LID else 0.0
-		var lid := Rect2(at + Vector2(-16, -69 - drop), Vector2(32, 5))
+		var lid := Rect2(at + Vector2(-16, -69 - drop), Vector2(32, 5))        # a pineapple lid with its crown
 		draw_rect(lid.grow(1.0), Pixel.INK)
-		draw_rect(lid, LID)
-		draw_rect(Rect2(lid.position, Vector2(lid.size.x, 1)), LID_LIGHT)
-		draw_rect(Rect2(at + Vector2(-4, -72 - drop), Vector2(8, 3)), LID)
-	# the pour: a stream from the spout curving down into the glass
+		draw_rect(lid, LID_GOLD)
+		for dx in range(0, 32, 4):
+			draw_rect(Rect2(lid.position + Vector2(dx + (2 if dx % 8 else 0), 2), Vector2(1, 1)), LID_GOLD_DARK)
+		draw_rect(Rect2(lid.position, Vector2(lid.size.x, 1)), Pixel.MUSTARD)
+		var crown := at + Vector2(0, -70 - drop)
+		var sway := sin(_t * 30.0) * 1.0 if _phase == Phase.BLEND else 0.0
+		for k in 5:
+			var lean := (k - 2) * 2.2
+			var tip := crown + Vector2(lean * 1.6 + sway, -6.0 - (2 - absi(k - 2)) * 2.5)
+			draw_line(crown + Vector2(lean * 0.4, 0), tip, Pixel.INK, 3.0)
+			draw_line(crown + Vector2(lean * 0.4, 0), tip, LEAF if k % 2 == 0 else LEAF_DARK, 1.0)
 	if _phase == Phase.POUR:
-		var spout := _jar_xf(Vector2(16, -66), at)
-		var mouth := Vector2(side * GLASS_AT, -26.0)
-		var y := spout.y
-		var n := 0
-		while y < mouth.y:
-			var k := (y - spout.y) / maxf(mouth.y - spout.y, 1.0)
-			var sx := lerpf(spout.x, mouth.x, 1.0 - (1.0 - k) * (1.0 - k))
-			draw_rect(Rect2(roundf(sx) - 1.0, y, 3, 2), CREAMY if (n + int(_t * 30.0)) % 4 else JUICE_LIGHT)
-			y += 2.0
-			n += 1
+		_draw_pour(at)
+
+
+# the pour (the professor's note, 2026-10-09: fluid, not a column of little squares): one smooth stream from the
+# spout curving down into the glass, thicker at the spout and thinning as it falls, with a darker edge, a
+# highlight flowing down it and a slight wobble. It runs down from the spout at the start, and at the end its
+# tail leaves the spout and falls in
+func _draw_pour(at: Vector2):
+	var spout := _jar_xf(Vector2(16, -66), at)
+	var mouth := Vector2(side * GLASS_AT, -26.0)
+	var head := clampf(_pt / 0.15, 0.0, 1.0)                 # how far down it's reached
+	var tail := clampf((_pt - (POUR_TIME - 0.2)) / 0.2, 0.0, 1.0)   # how far its end has fallen
+	if head <= tail:
+		return
+	var n := 18
+	var pts := PackedVector2Array()
+	var widths := PackedFloat32Array()
+	for i in n + 1:
+		var k := lerpf(tail, head, float(i) / n)
+		var p := Vector2(lerpf(spout.x, mouth.x, 1.0 - (1.0 - k) * (1.0 - k)), lerpf(spout.y, mouth.y, k))
+		p.x += sin(k * 9.0 - _t * 14.0) * 0.6 * k            # a little wobble, more as it falls
+		pts.append(p)
+		widths.append(lerpf(0.8, 3.8, k))                     # a thin trickle at the spout, wider into the glass
+	for pass_i in 2:                                         # the darker edge, then the stream over it
+		var col := JUICE_DARK if pass_i == 0 else CREAMY
+		for i in n:
+			var d := (pts[i + 1] - pts[i]).normalized().orthogonal()
+			var e0 := (0.35 + 0.65 * widths[i] / 3.8) if pass_i == 0 else 0.0     # (the edge thins with it)
+			var e1 := (0.35 + 0.65 * widths[i + 1] / 3.8) if pass_i == 0 else 0.0
+			var w0 := widths[i] / 2.0 + e0
+			var w1 := widths[i + 1] / 2.0 + e1
+			var d1 := d if i + 1 >= n else (pts[i + 2] - pts[i + 1]).normalized().orthogonal()
+			draw_primitive(PackedVector2Array([pts[i] + d * w0, pts[i + 1] + d1 * w1,    # (a plain quad: as a
+				pts[i + 1] - d1 * w1, pts[i] - d * w0]), PackedColorArray([col, col, col, col]),   # polygon, a squashed
+				PackedVector2Array())                     # one, as the stream starts and ends, failed to triangulate)
+	for i in n:                                              # the highlight, in dashes flowing down it
+		var k := float(i) / n
+		if fposmod(k * 40.0 - _t * 24.0, 4.0) < 2.0:
+			var d := (pts[i + 1] - pts[i]).normalized().orthogonal()
+			draw_line(pts[i] + d * widths[i] * 0.2, pts[i + 1] + d * widths[i + 1] * 0.2, JUICE_LIGHT, 1.0)
 
 
 # the hurricane glass beside it: a curvy bowl on a stem, filling level with the same liquid, then a pineapple

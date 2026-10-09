@@ -11,6 +11,7 @@ extends Node2D
 # instead have countered(dir): it's only ever the first cut (the chain moves on to cuttable enemies). The COUNTER banner is drawn by the combo HUD ("combo_hud" group).
 
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
+const Achievements := preload("res://code/design/achievements.gd")
 
 const FIRST_PAUSE := 0.18       # time stops for this long before the first cut
 const NEXT_GAP := 0.14          # after a cut, before teleporting to the next enemy
@@ -230,6 +231,9 @@ func _teleport_to(e: Node2D, through := false):
 	var spot := at + Vector2(side * gap, 0)
 	if _blocked(at, spot, e):                   # ...unless there's a wall there
 		spot = at - Vector2(side * gap, 0)
+	elif not _ground_under(spot, e) and _ground_under(at - Vector2(side * gap, 0), e):
+		spot = at - Vector2(side * gap, 0)      # ...or it's off the edge of its ledge and the other side isn't
+		                                        # (level 1's columns: their Mangos stand right at the edge)
 	_ghost()
 	_streaks.append([from + Vector2(0, -20), spot + Vector2(0, -20), _now()])
 	player.global_position = spot
@@ -276,6 +280,15 @@ func _blocked(a: Vector2, b: Vector2, e: Node2D) -> bool:
 	return not get_world_2d().direct_space_state.intersect_ray(q).is_empty()
 
 
+# solid ground just under a point (an enemy standing on a ledge has some under its feet; one in the air doesn't)
+func _ground_under(p: Vector2, e: Node2D) -> bool:
+	var exclude: Array[RID] = [player.get_rid()]
+	if e is CollisionObject2D:
+		exclude.append(e.get_rid())
+	var q := PhysicsRayQueryParameters2D.create(p + Vector2(0, -4), p + Vector2(0, 12), 1, exclude)
+	return not get_world_2d().direct_space_state.intersect_ray(q).is_empty()
+
+
 # a frozen pose: time is stopped, so the frame stays put
 func _pose(anim: String, frame: int):
 	_psprite.play(anim)
@@ -311,6 +324,8 @@ func _resume():
 	player._shake(12.0, 0.3)
 	EnemyKit.protect_player(0.6)
 	get_tree().call_group("combo_hud", "counter_end")
+	if _cuts >= 10:                              # one counter chaining 10 or more
+		Achievements.unlock(get_tree(), "counter")
 
 
 # the screen as it will be around the player where they are now (the camera follows them there)

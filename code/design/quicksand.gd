@@ -133,7 +133,7 @@ func _buried(feet: Vector2):
 	_sink = 0.0
 	_was_on = false
 	if get_tree().get_first_node_in_group("level"):
-		get_tree().call_group("level", "respawn_player")
+		get_tree().call_group("level", "respawn_player", true)     # (you come back dazed: Morgan's call)
 	else:
 		player.velocity = Vector2(0, -320)
 

@@ -15,6 +15,7 @@ extends Node2D
 
 const Hud := preload("res://code/design/level_hud.gd")
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
+const Achievements := preload("res://code/design/achievements.gd")
 const Pixel := preload("res://code/design/pixel_font.gd")
 const LAVA_DEPTH := 24.0          # the living background fills this much above a LavaBed's top with lava
 const CLEAR_DELAY := 2.0          # after the boss is beaten, LEVEL CLEAR comes up this much later
@@ -39,8 +40,16 @@ const CLEAR_DELAY := 2.0          # after the boss is beaten, LEVEL CLEAR comes 
 @export var clock_start := 20.0                    # (was 30, Morgan's call, 2026-10-08)
 @export var per_kill := 1.0                       # a Mango (or any other minion)
 @export var per_tough := 1.0                      # a snake fruit (sand_serpent.gd; Morgan's call: just +1s too)
-@export var per_shark := 15.0                     # the watermelon shark
+@export var per_shark := 5.0                      # the watermelon shark (Morgan's call, 2026-10-09: was 15)
+@export var daze_penalty := 5.0                   # every time you're dazed (Morgan's call, 2026-10-09)
 @export var refill_on_fail := 30.0               # (only without a fail ending: back at the checkpoint with this)
+@export_group("Counter climb (CUTTING CORNERS)")
+# the achievement for climbing a column climb by counters alone (Morgan's call, 2026-10-09): standing on the
+# ground with climb_x.x <= x < climb_x.y starts it. Jumping is fine (to counter from the air, or just dropping
+# back down), but standing anywhere higher than a counter chain has put you spoils it (back on the ground there
+# to try again). Standing on the top (x >= climb_x.y, y <= climb_top) earns it. (0, 0): none
+@export var climb_x := Vector2.ZERO
+@export var climb_top := 0.0
 @export_group("")
 @export var final_title := "THE END!"             # the clear screen's title when there's no next level
 
@@ -55,6 +64,18 @@ var _outro_waiting := false        # an ending scene (bar_intro.gd, group "level
 var _juice := 0.0                  # the juice clock: seconds left
 var _alive := {}                   # enemies seen alive (instance id), to notice each one's death once
 var _failing := -1.0               # out of juice: when (real time), till you're put back
+var _last_state := -1              # the player's state last frame (a daze starts when it turns KNOCKBACK)
+var _daze_until := -1.0            # dazed after the quicksand closed over you: frozen in the STUN loop till then
+var _dazes := 0                    # how many times you've been dazed
+var _fight_dazes := 0              # ...when the boss fight started (none since by the kill: NO SWEAT)
+var _hit_t := -1.0                 # a hit that threw you itself (the shark's): dazed as soon as you land
+var _hit_new := false              # a hit came in: knocked back away from it, then dazed (player_hit)
+var _hit_from := NAN               # where it came from (world x)
+var _hit_knock := true
+var _end_achieved := false         # the end-of-level achievements are given (once the rank's locked in)
+var _climb_clean := false          # on the column climb, nothing climbed by yourself yet (CUTTING CORNERS)
+var _climb_ok_y := 0.0             # the highest you're allowed to stand: where the counter chains have put you
+var _climb_chained := false        # a chain carried you: wherever you next stand is allowed
 var _fail_scene := false           # the fail ending is playing (the clock's gone)
 var _burst := 0                    # kills this frame (their "+1s"s set off one after another)
 const FAIL_HOLD := 1.6
@@ -74,6 +95,8 @@ var _flags := Node2D.new()
 
 
 func _ready():
+	Achievements.new_run()               # (while testing they can all pop up again each run)
+	(func(): Achievements.resume(get_tree())).call_deferred()   # (any pop-up a reload cut short plays again)
 	global_position = Vector2.ZERO       # the checkpoint flags are drawn in world space
 	add_to_group("level")
 	hud = Hud.new()
@@ -133,6 +156,33 @@ func _physics_process(delta):
 			hud.intro(level_number, level_name)
 		return
 
+	# DAZED (Morgan's call, 2026-10-09): each daze costs daze_penalty off the juice clock. A daze is the player's
+	# KNOCKBACK (a wall at a gallop, bouncing off the Pina Colada) or the daze after the quicksand (_daze_player)
+	var knock: int = player.get_script().State["KNOCKBACK"]
+	if player.state == knock and _last_state != knock:
+		_dazes += 1
+		juice_penalty(daze_penalty, player.global_position + Vector2(0, -44))
+	_last_state = player.state
+	_check_climb()
+	if _hit_new:                                       # a hit: knocked back away from it, then dazed (Morgan's call:
+		_hit_new = false                               # the same KNOCKBACK as a wall at a gallop, which costs the time)
+		if not player.is_physics_processing() or player.state == knock or _daze_until > 0.0:
+			_hit_t = -1.0                              # (held by a script, like the snake's drag; or already dazed)
+		elif _hit_knock:
+			_hit_t = -1.0
+			if not is_nan(_hit_from) and _hit_from != player.global_position.x:
+				player.facing = 1 if _hit_from > player.global_position.x else -1   # face it: thrown away from it
+			player._start_knockback()
+	if _hit_t > 0.0 and (player.state == knock or _daze_until > 0.0):
+		_hit_t = -1.0                                  # (already dazed: a wall's knockback, or the last hit's)
+	elif _hit_t > 0.0 and _now() - _hit_t > 0.15 and player.is_on_floor() and player.is_physics_processing():
+		_hit_t = -1.0                                  # (after the hit's push has shown)
+		_daze_player()
+	if _daze_until > 0.0 and _now() >= _daze_until:
+		_daze_until = -1.0
+		player.set_physics_process(true)
+		player._set_state(player.get_script().State["IDLE"])
+
 	# the timer runs on real time (hit-freezes and the flash's freeze don't stop it), from your first move
 	var now := _now()
 	if not _timing and not _cleared and not _intro_waiting and player.velocity.length() > 1.0:
@@ -176,11 +226,15 @@ func _physics_process(delta):
 		_cleared = true
 		_timing = false
 		hud.final_title = final_title
-		hud.clear(_clock(_time), _rank(), next_scene == "")
+		hud.clear(_clock(_time), _rank(), next_scene == "", _time, rank_times)   # (the time counts up to it)
 
 
 func _process(_delta):
 	_flags.queue_redraw()
+	if _cleared and not _end_achieved and hud.clear_ready():     # (after the rank reveal, not spoiling it)
+		_end_achieved = true
+		if _rank() == "S":
+			Achievements.unlock(get_tree(), "service")
 	if not _cleared or not hud.clear_ready() or next_scene == "":
 		return
 	var down := Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_KP_ENTER)
@@ -219,6 +273,8 @@ func _update_juice(delta: float):
 		_failing = _now()
 		_timing = false
 		hud.out_of_juice()
+		if _time < 10.0:                              # out of juice in under 10s of play (Morgan's call)
+			Achievements.unlock(get_tree(), "tutorial")
 		EnemyKit.protect_player(FAIL_HOLD + 1.0)
 		player.velocity = Vector2.ZERO
 		var states: Dictionary = player.get_script().State
@@ -283,6 +339,8 @@ func fail_card():
 # the opening scene is over (bar_intro.gd): the level starts here. The title comes in, the timer starts on
 # your first move, and falling sends you back to `start` (past the scene's gate, which is shut for good)
 func intro_done(start: Vector2):
+	# FIRST CUSTOMER as the level starts: you've met her at the tiki bar (achievements.gd)
+	get_tree().create_timer(0.6, true, false, true).timeout.connect(func(): Achievements.unlock(get_tree(), "customer"))
 	_intro_over = true
 	_intro_waiting = false
 	hud.juice_hidden = false            # (if it hasn't flown in: a retry skips the chat)
@@ -291,6 +349,7 @@ func intro_done(start: Vector2):
 
 
 func _start_fight():
+	_fight_dazes = _dazes
 	_fight = true
 	_respawn_at = _trigger.global_position
 	if _gate and _gate.has_method("close"):
@@ -306,6 +365,9 @@ func _start_fight():
 func boss_defeated(_who = null):
 	if _beaten_at < 0.0:
 		_beaten_at = _now()
+		if _dazes == _fight_dazes:             # NO SWEAT: not dazed in the boss fight (Morgan's call, 2026-10-09:
+		                                       # it was the whole level), popping the moment the boss goes down
+			Achievements.unlock(get_tree(), "no_sweat")
 		var outro := get_tree().get_first_node_in_group("level_outro")
 		if outro:
 			# an ending scene plays first (level 1's tiki bar): the clock stops here, the boss's bar goes, and
@@ -336,10 +398,24 @@ func _boss_done() -> bool:
 	return names[_boss.state] == "DEAD"   # (FINISHED is the finisher still playing: it can still fail)
 
 
-# fell in the lava or off the world: back to the last checkpoint (the clock keeps running)
-func respawn_player():
+# an enemy hit you (FruitMinion.play_hurt_sound tells us): every hit knocks you back and dazes you (Morgan's call,
+# 2026-10-09), costing time like every daze. knock false: the hit throws you itself (the shark), so you're
+# just dazed as you land
+func player_hit(from_x := NAN, knock := true):
+	if not _cleared and player:
+		_hit_t = _now()
+		_hit_from = from_x
+		_hit_knock = knock
+		_hit_new = true
+
+
+# fell in the lava or off the world: back to the last checkpoint (the clock keeps running). dazed: the quicksand
+# swallowed you (or a snake fruit pulled you under), so you come back dazed
+func respawn_player(dazed := false):
 	if _cleared or player == null:
 		return
+	_hit_t = -1.0                        # (a hit that sent you back here doesn't daze you twice)
+	_hit_new = false
 	hud.oops()
 	player.velocity = Vector2.ZERO
 	player.global_position = _respawn_at
@@ -348,6 +424,50 @@ func respawn_player():
 	var states: Dictionary = player.get_script().State
 	player._set_state(states["IDLE"])
 	EnemyKit.protect_player(1.0)
+	if dazed:
+		_daze_player()
+		Achievements.unlock(get_tree(), "quicksand")      # the sand got you (swallowed, or a snake fruit's pull)
+
+
+# CUTTING CORNERS: up the column climb by counters alone. Jumping's fine (countering from the air, dropping back
+# down); what spoils it is standing higher than the counter chains have taken you (a jump or an edge grab up
+# onto a column). The chain pauses the player's physics while it carries them, so that's how it's told apart
+func _check_climb():
+	if climb_x == Vector2.ZERO:
+		return
+	var p := player.global_position
+	if p.x >= climb_x.x and p.x < climb_x.y and player.is_on_floor() and p.y > -8.0:   # at the foot: (re)start
+		_climb_clean = true
+		_climb_ok_y = p.y
+		_climb_chained = false
+	if not _climb_clean:
+		return
+	if not player.is_physics_processing():                     # a counter chain carrying you
+		_climb_chained = true
+	elif player.is_on_floor():
+		if _climb_chained:                                      # where it put you: allowed from now on
+			_climb_ok_y = minf(_climb_ok_y, p.y)
+			_climb_chained = false
+		elif p.y < _climb_ok_y - 6.0:                           # higher than it took you: you climbed yourself
+			_climb_clean = false
+			return
+		if p.x >= climb_x.y and p.y <= climb_top + 4.0:         # on top
+			_climb_clean = false
+			Achievements.unlock(get_tree(), "climb")
+
+
+# dazed where you stand: BOOM's STUN loop for the knockback's daze time, frozen and safe, and it costs time
+func _daze_player():
+	player.velocity = Vector2.ZERO
+	player.set_physics_process(false)
+	var sprite := player.get_node("AnimatedSprite2D") as AnimatedSprite2D
+	if sprite.sprite_frames.has_animation("STUN"):
+		sprite.play("STUN")
+	var daze: float = player.get_script().KNOCKBACK_DAZE
+	_daze_until = _now() + daze
+	_dazes += 1
+	EnemyKit.protect_player(daze + 0.5)
+	juice_penalty(daze_penalty, player.global_position + Vector2(0, -44))
 
 
 func _clock(t: float) -> String:

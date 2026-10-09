@@ -12,6 +12,7 @@ extends Node2D
 enum Mode { PARKED, HOPPING, RIDING, FLIPPING, DONE }
 
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
+const Achievements := preload("res://code/design/achievements.gd")
 const Pixel := preload("res://code/design/pixel_font.gd")
 const MANGO := preload("res://scene/design/fruit_minion.tscn")
 const FruitMinion := preload("res://code/design/fruit_minion.gd")
@@ -106,6 +107,8 @@ var _mode: Mode = Mode.PARKED
 var _mode_t := 0.0
 var _t := 0.0
 var _sealed := false                 # the mouth caved in behind you once the cart crashed
+var _blocked_ach := false            # you walked back up the shaft to the rubble (WRONG WAY BRO)
+var _shame_ach := false              # ...and then all the way back down again (THE WALK OF SHAME)
 var _pts := PackedVector2Array()
 var _cum := PackedFloat32Array()     # distance along the track at each point
 var _len := 0.0
@@ -242,6 +245,16 @@ func _physics_process(delta: float):
 		if player == null:
 			return
 		_sprite = player.get_node("AnimatedSprite2D") as AnimatedSprite2D
+	if _sealed and not _blocked_ach:      # back up the shaft against the cave-in (Morgan's call, 2026-10-09)
+		var p := player.global_position
+		if p.x < global_position.x + MOUTH.y + 24.0 and p.y > 0.0 and p.y < 80.0:
+			_blocked_ach = true
+			Achievements.unlock(get_tree(), "mine_back")
+	elif _blocked_ach and not _shame_ach:  # back down to the bottom of the shaft, where the slope meets the floor
+		var p := player.global_position
+		if p.y > 300.0 and p.x > global_position.x + 520.0 and player.is_on_floor():
+			_shame_ach = true
+			Achievements.unlock(get_tree(), "shame")
 	match _mode:
 		Mode.PARKED:
 			var c := to_global(_cart_pos)
@@ -654,8 +667,8 @@ func _draw_mouth(c: Node2D):
 		var rng := RandomNumberGenerator.new()
 		rng.seed = 5040
 		for i in 46:
-			var w := float(rng.randi_range(8, 22))
-			var r := Rect2(roundf(rng.randf_range(MOUTH.x - 2.0, MOUTH.y - w + 2.0)), roundf(rng.randf_range(MOUTH_TOP + 8.0, 52.0)), w, float(rng.randi_range(6, 12)))
+			var bw := float(rng.randi_range(8, 22))
+			var r := Rect2(roundf(rng.randf_range(MOUTH.x - 2.0, MOUTH.y - bw + 2.0)), roundf(rng.randf_range(MOUTH_TOP + 8.0, 52.0)), bw, float(rng.randi_range(6, 12)))
 			c.draw_rect(r, RUBBLE[rng.randi() % 2])
 			c.draw_rect(Rect2(r.position.x, r.end.y - 1.0, r.size.x, 1), RUBBLE[2])
 		c.draw_line(Vector2(MOUTH.x + 6.0, -24.0), Vector2(MOUTH.y - 10.0, -34.0), WOOD_DARK, 3.0)   # a fallen beam

@@ -8,6 +8,7 @@ extends StaticBody2D
 # PLACEHOLDER art drawn in code.
 
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
+const Achievements := preload("res://code/design/achievements.gd")
 const Pixel := preload("res://code/design/pixel_font.gd")
 const CRACK_SOUND := preload("res://sounds/IMPACT_dragon-studio-hard-heavy-impact-515256.mp3")
 const CRACK_SOUND_DB := -6.0
@@ -43,6 +44,7 @@ var _crack := AudioStreamPlayer.new()
 
 
 func _ready():
+	add_to_group("barricade")
 	collision_layer = 1
 	collision_mask = 0
 	z_index = -1                     # behind you (the flying pieces too)
@@ -98,6 +100,12 @@ func _check_hits():
 # it flies apart the way you're going: boards, posts snapped at the stumps, the striped board and the sign
 func _break(dir: float, power: float):
 	_broken = true
+	var all := true                  # every warning sign down: YOU CAN'T TELL ME WHERE TO GO (Morgan's call)
+	for b in get_tree().get_nodes_in_group("barricade"):
+		if not b._broken:
+			all = false
+	if all:
+		Achievements.unlock(get_tree(), "signs")
 	_shape.set_deferred("disabled", true)
 	var base := Vector2(dir * 200.0 * power, 0)
 	for by: float in BOARDS:
@@ -105,9 +113,9 @@ func _break(dir: float, power: float):
 	for px in [-9.0, 9.0]:
 		_piece(Vector2(px, -STUMP - 26.0), base * 0.6 + Vector2(dir * randf_range(-20.0, 80.0), -randf_range(120.0, 260.0)), Vector2(4, 52), WOOD_DARK)
 	_piece(Vector2(0, -59.0), base + Vector2(dir * randf_range(0.0, 100.0), -randf_range(200.0, 340.0)), Vector2(28, 6), STRIPE_RED)
-	var sign := _sign_rect()
-	_pieces.append([sign.get_center(), base * 0.8 + Vector2(dir * randf_range(20.0, 120.0), -randf_range(160.0, 300.0)),
-		0.0, randf_range(-10.0, 10.0) * dir, sign.size, SIGN, 0.0, true])
+	var sign_r := _sign_rect()
+	_pieces.append([sign_r.get_center(), base * 0.8 + Vector2(dir * randf_range(20.0, 120.0), -randf_range(160.0, 300.0)),
+		0.0, randf_range(-10.0, 10.0) * dir, sign_r.size, SIGN, 0.0, true])
 	_splinters(Vector2(0, -30), Vector2(dir, -0.5).normalized(), power)
 	for i in 4:
 		_puff(Vector2(randf_range(-10.0, 10.0), 0), Vector2(dir * randf_range(30.0, 110.0), -randf_range(0.0, 20.0)))

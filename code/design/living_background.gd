@@ -47,7 +47,7 @@ const WAVE_SOUND_DB := 0.0
 const WAVE_SOUND_SKIP := 0.17    # the file starts with 0.17 s of near-silence, then swells as the wave rolls out
 # a charged W in deep water drains the basin: a wall of water rolls out each way to its ends, pushing all
 # the water along, and crashes out over the banks (Morgan's idea). Deep water has no gallop until then.
-const DRAIN_SPEED := 420.0
+const DRAIN_SPEED := 580.0                 # (faster, Morgan's call, 2026-10-09: was 420)
 const DRAIN_CREST := 22.0        # how far the wall of water stands above the water level (it grows as it gathers water)
 const DRAIN_W := 40.0            # the wall's width: a steep front and a long slope down to the dry bed behind
 # a drained basin can be flooded again (waterfall.gd calls refill()): a surge of water rolls back in from one
@@ -185,6 +185,8 @@ func _ready():
 	global_position = Vector2.ZERO
 	add_to_group("living_background")     # other effects ask in_water() through this group
 	_apply_theme()
+	if theme == "day":                     # earth painted on the plain grey floors (ground_painter.gd)
+		add_child(load("res://code/design/ground_painter.gd").new())
 	var backdrop := get_parent().get_node_or_null("Backdrop") as CanvasItem
 	if backdrop:
 		backdrop.visible = false
@@ -1168,7 +1170,7 @@ func _draw_glitter():
 	for row in range(0, 44, 2):
 		var y := -9.0 + row
 		var hw := 3.0 + row * 0.7
-		for k in 2 + row / 8:
+		for k in 2 + int(row / 8.0):
 			var h := posmod(row * 37 + k * 53 + int(_t * 7.0 + k), 97) / 97.0
 			var x := roundf(cx - hw + h * 2.0 * hw)
 			var w := 2 + posmod(row + k + int(_t * 3.0), 4)
@@ -1287,7 +1289,13 @@ func _gen_mountains() -> Array:
 	for x in int(TILE):
 		var fx := float(x)
 		var hills := 34.0 + 10.0 * sin(TAU * 2.0 * fx / TILE + 1.3) + 6.0 * sin(TAU * 5.0 * fx / TILE + 0.4)
-		var volcano := minf(maxf(0.0, 96.0 - absf(fx - peak) * 0.6), 82.0)     # flat-topped cone
+		# the volcano: a cone up to a crater, two lips of its rim with a dip between (Morgan saw the old flat-topped
+		# cone as cut off: its flat top lined up with the sky's haze line)
+		var d := absf(fx - peak)
+		var cone := maxf(0.0, 112.0 - d * 0.6)
+		var rim := 101.0 + 2.0 * clampf(1.0 - absf(d - 9.0) / 5.0, 0.0, 1.0)
+		var crater := 101.0 - 3.0 * clampf(1.0 - d / 6.0, 0.0, 1.0)
+		var volcano := minf(cone, crater if d < 6.0 else rim)
 		var top := -roundf(maxf(hills, volcano))
 		out.append([Rect2(x, top, 1, 420 - top), c_mountain_shade if fx > peak and volcano > hills else c_mountain])
 	return out
@@ -1517,7 +1525,6 @@ func _gen_dune_palms() -> Array:
 func _gen_volcano() -> Array:
 	var out := []
 	var peak := 200.0
-	var cone_top := 116.0
 	for x in int(TILE):
 		var fx := float(x)
 		var hills := 44.0 + 12.0 * sin(TAU * 2.0 * fx / TILE + 1.3) + 7.0 * sin(TAU * 7.0 * fx / TILE + 0.4) \

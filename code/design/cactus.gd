@@ -1,6 +1,6 @@
 extends Node2D
 # CACTUS (Level 1): a prickly cactus in the quicksand, with a huddle of Mangos napping just behind it.
-#   Touch:     pricks you (pushed back + red flash, like touching a Mango).
+#   Touch:     harmless (Morgan's call, 2026-10-09: it used to prick you).
 #   Breaking:  any hit breaks it: Q, W, the roll, the slams, or a charged smash that reaches it.
 #   Then:      it bursts and fires a fan of its spikes away from you. Each spike flies in a low arc and
 #              stabs the first enemy it meets (take_hit), so the nappers behind it get skewered.
@@ -14,7 +14,8 @@ extends Node2D
 #   Camera:    while a chain runs, time slows and the view slides along with it (you stay on screen at its
 #              edge), then it eases back once the last cactus has gone (Morgan's call). For the palm it goes
 #              further: it follows the volley all the way there and rides the palm's fall back (chain_follow). Each Mango a spike
-#              kills bursts into juice with a "+1" floating up.
+#              kills bursts into juice (the "+1" that floated up off it was taken out, Morgan's call, 2026-10-09:
+#              the juice clock's "+1s" says it).
 #   Nappers:   the Mangos listed in `nappers`. While the cactus stands they doze facing away from it, with
 #              "z"s drifting up, and only wake if you walk right up to them (the minion's own BEHIND_SIGHT).
 #              Any the spikes miss wake with a start once the volley has passed.
@@ -24,6 +25,9 @@ signal shattered                                # it just broke
 
 @export var nappers: Array[NodePath] = []       # Mangos dozing behind it
 @export var spike_count := 14
+# a little bouncing arrow over it, the same as the dynamite wick's (Morgan's call, 2026-10-08: on the first cactus,
+# so players know it's there to hit); it fades once the cactus breaks
+@export var arrow := false
 
 const EnemyKit := preload("res://code/design/enemy_kit.gd")
 const FruitMinion := preload("res://code/design/fruit_minion.gd")
@@ -37,7 +41,6 @@ const VOLLEY_SOUND_SKIP := 0.60                 # 0.6 s of silence first (as in 
 
 const SIZE := Vector2i(32, 46)                  # the art, arms included
 const HIT_BOX := Rect2(-14, -44, 28, 44)        # where the player's attacks break it
-const TOUCH_BOX := Rect2(-6, -40, 12, 40)       # where it pricks the player (just the trunk)
 const SPIKE_LEN := 7
 const SPIKE_GRAVITY := 240.0
 const SPIKE_RANGE := 420.0                      # spikes that fly this far without landing just vanish
@@ -62,8 +65,6 @@ const FAR_MAX := 1000.0                         # (following the palm, it goes a
 const PAN_EASE := 6.0
 const JuiceSpray := preload("res://code/design/juice_spray.gd")
 const CinemaBars := preload("res://code/design/cinema_bars.gd")
-const POP_LIFE := 0.9                           # a "+1" floats up this long (game time)
-const POP_COLORS := [Pixel.ORANGE, Pixel.RUST, Pixel.MUSTARD]
 const SPIKE_PUSH := Vector2(140, -180)
 const ENEMY_BOX := Rect2(-13, -26, 26, 26)      # about a Mango's body, from its feet
 const WAKE_DELAY := 0.45                        # nappers the spikes missed wake this long after the burst
@@ -79,6 +80,7 @@ const SKIN_LIGHT := Color("c8dc8e")
 var player: CharacterBody2D = null
 var _names: Array = []
 var _broken := false
+var _arrow_a := 1.0
 var _image: Image
 var _texture: ImageTexture
 var _spikes: Array = []                         # each: {"pos", "vel", "wait", "stuck", "age"}
@@ -90,7 +92,6 @@ var _wobble := 0.0                              # it shivers a moment after pric
 var _t := 0.0
 var _fx := Node2D.new()
 var _break_sound := AudioStreamPlayer.new()
-var _pops: Array = []                           # "+1"s floating up off the kills: [local pos, age]
 # the chain camera is run by the cactus you broke yourself (the chain's first)
 static var _chain_owner: Node = null
 static var _chain_dir := 1.0
@@ -136,14 +137,13 @@ func _physics_process(delta: float):
 	_wobble = move_toward(_wobble, 0.0, delta * 3.0)
 	_update_spikes(delta)
 	_update_pieces(delta)
-	for pop: Array in _pops:
-		pop[1] += delta
-	_pops = _pops.filter(func(pop): return pop[1] < POP_LIFE)
 	_keep_dozing()
 	if _wake_in >= 0.0:
 		_wake_in -= delta
 		if _wake_in < 0.0:
 			_wake_nappers()
+	if arrow:
+		_arrow_a = move_toward(_arrow_a, 0.0 if _broken else 1.0, delta * 4.0)
 	_fx.queue_redraw()
 	if _broken:
 		return
@@ -162,10 +162,7 @@ func _physics_process(delta: float):
 		var dir := signf(global_position.x - player.global_position.x)
 		_shatter(dir if dir != 0.0 else float(player.facing))
 		return
-	if EnemyKit.hurt_player(player, Rect2(global_position + TOUCH_BOX.position, TOUCH_BOX.size), global_position.x):
-		_wobble = 1.0
-		queue_redraw()
-	elif _wobble > 0.0:
+	if _wobble > 0.0:                                   # (touching it doesn't hurt any more: Morgan's call)
 		queue_redraw()
 
 
@@ -178,15 +175,13 @@ func _galloping_into() -> bool:
 	return absf(global_position.x - player.global_position.x) - HIT_BOX.size.x / 2.0 - PLAYER_HALF_WIDTH < GALLOP_REACH
 
 
-# you galloped into it: the gallop's over (speed back to nothing), you bounce off it with a red prick
-func _stop_gallop(dir: float):
+# you galloped into it: the gallop's over (speed back to nothing) and you bounce off it, unhurt (no prick any
+# more, Morgan's call), so you stay and watch the chain
+func _stop_gallop(_dir: float):
 	player.speed_level = 0
 	player.hold_time = 0.0
 	if player.has_method("bounce_back"):
 		player.bounce_back(global_position.x, 170.0)
-	player.modulate = Color(1, 0.35, 0.35)
-	player.create_tween().tween_property(player, "modulate", Color.WHITE, 0.4)
-	FruitMinion.play_hurt_sound(player)
 	_wobble = 1.0
 
 
@@ -394,7 +389,7 @@ func _update_spikes(delta: float):
 	_spikes = alive
 
 
-# a Mango the spikes just killed: it bursts into juice, and a "+1" floats up off it
+# a Mango the spikes just killed: it bursts into juice
 func _juice_pop(e: Node2D, dir: float):
 	var spray: Node2D = JuiceSpray.new()
 	spray.color = e.juice_color if "juice_color" in e else Color(0.91, 0.54, 0.13)
@@ -404,7 +399,6 @@ func _juice_pop(e: Node2D, dir: float):
 	spray.check_ground = true                       # (a Mango up on a rock pillar: no puddles in mid-air)
 	spray.position = get_parent().to_local(e.global_position + Vector2(0, -12))
 	get_parent().add_child(spray)
-	_pops.append([to_local(e.global_position + Vector2(0, -34)), 0.0])
 
 
 # ---------- the chain camera (real time) ----------
@@ -644,10 +638,8 @@ func _draw():
 
 # spikes in flight (with a faint streak) or stuck in the sand, and the nappers' "z"s
 func _draw_fx():
-	for pop: Array in _pops:                    # "+1": floating up, fading out at the end
-		var k: float = pop[1] / POP_LIFE
-		var at: Vector2 = pop[0] + Vector2(-5, -roundf(26.0 * (1.0 - (1.0 - k) * (1.0 - k))))
-		Pixel.draw_cells(_fx, Pixel.cells("+1", at.round(), 1), POP_COLORS, 1.0 - clampf((k - 0.6) / 0.4, 0.0, 1.0))
+	if arrow and _arrow_a > 0.0:
+		_draw_arrow()
 	for s: Dictionary in _spikes:
 		if s["wait"] > 0.0:
 			continue
@@ -690,3 +682,19 @@ func _draw_z(p: Vector2, n: int, a: float):
 		_fx.draw_rect(Rect2(c - Vector2.ONE, Vector2(3, 3)), Color(Pixel.INK, a))
 	for c in cells:
 		_fx.draw_rect(Rect2(c, Vector2.ONE), Color(Pixel.OFF_WHITE, a))
+
+
+# the arrow over its head, bouncing down at it: dynamite.gd's wick arrow, drawn the same (mustard, ink outline)
+func _draw_arrow():
+	var a := _arrow_a
+	var drop := roundf(absf(sin(Time.get_ticks_msec() / 1000.0 * 5.0)) * 3.0)
+	var ax := 0.0
+	var ay := -float(SIZE.y) - 16.0 + drop
+	for row in 4:
+		var half := 3.0 - row
+		_fx.draw_rect(Rect2(ax - half - 1.0, ay + row - 1.0, half * 2.0 + 3.0, 3), Color(Pixel.INK, a))
+	_fx.draw_rect(Rect2(ax - 2.0, ay - 6.0, 5, 7), Color(Pixel.INK, a))
+	_fx.draw_rect(Rect2(ax - 1.0, ay - 5.0, 3, 6), Color(Pixel.MUSTARD, a))
+	for row in 4:
+		var half := 3.0 - row
+		_fx.draw_rect(Rect2(ax - half, ay + row, half * 2.0 + 1.0, 1), Color(Pixel.MUSTARD, a))

@@ -15,6 +15,7 @@ extends Node2D
 # river.
 
 const SPLASH := preload("res://sounds/WAVE_SOUND_universfield-water-splash-199583.mp3")
+const Achievements := preload("res://code/design/achievements.gd")
 const SPLASH_DB := -2.0
 const SPLASH_SKIP := 0.17        # the file starts with near-silence
 # plays as the wave starts to form: its 1.2 s swell matches the wave building, and it's loudest about
@@ -89,6 +90,17 @@ var _t := 0.0
 var _ride := 0.0                 # seconds riding
 var _catch_rel := Vector2.ZERO   # where the rider was, from the crest, when it caught them
 var _drops := []                 # spray and mist: [pos (local), vel, life, mist?]
+# THE CREST'S SPINDRIFT (the professor's idea, 2026-10-09): foam blown back off the top of the swell and the lip
+# in a feathery plume, the way wind tears spray off a real wave's crest, plus little glints popping on the crest
+var _spume := []                 # [pos (local), vel, life, starting life]
+var _spume_acc := 0.0            # (part of a speck owed: they come out at a steady rate)
+var _glints := []                # [x from the crest, life]
+# THE WHITECAP (Morgan's call, 2026-10-09): the crest buried in churning foam bubbles, so you can't see its edge:
+# each bubble rides along on the crest (x from the crest, so it moves with the wave), swells in and shrinks away
+var _foam := []                  # [where along the outline (0..1), offset, radius, life, starting life, ring?]
+var _foam_acc := 0.0
+var _prev_front := 0.0
+var _front_v := 0.0              # how fast the crest is moving (the plume keeps partly up with it)
 var _boards := []                # surfboards tumbling away after you leave the wave: [pos (local), vel, angle, spin, life]
 var _sprite: AnimatedSprite2D = null
 var _sound := AudioStreamPlayer.new()
@@ -215,6 +227,47 @@ func _physics_process(delta: float):
 
 
 func _spray(delta: float):
+	if delta > 0.0:                                         # (clamped: the crest jumps when a wave re-forms)
+		_front_v = lerpf(_front_v, clampf((_front - _prev_front) / delta, 0.0, 900.0), 0.3)
+	_prev_front = _front
+	if _h > 20.0 and _mode != Mode.CRASH:                  # spindrift: more, and further, as it grows
+		_spume_acc += (90.0 + _h * 2.6) * clampf((_h - 20.0) / 30.0, 0.0, 1.0) * delta
+		while _spume_acc >= 1.0:
+			_spume_acc -= 1.0
+			var at: Vector2
+			if randf() < 0.75:                                 # off the top of the swell, most right at the crest
+				var back := randf()
+				var x := _front - back * back * (20.0 + _h * 0.3)
+				at = Vector2(x, -_crest(x) - randf_range(3.0, 10.0))      # (from the top of the foam)
+			else:                                              # off the top of the curling lip
+				at = Vector2(_front + randf_range(0.0, _lip_radius()), -_h - randf_range(4.0, 10.0))
+			var keep := randf_range(0.55, 0.85)               # it keeps up with the crest this much, so it trails back
+			var vel := Vector2(_front_v * keep - randf_range(20.0, 70.0), -randf_range(45.0, 130.0))
+			var life := randf_range(0.45, 0.95)
+			_spume.append([at, vel, life, life])
+		if randf() < delta * 8.0:                            # a glint on the crest
+			_glints.append([-randf_range(0.0, 20.0 + _h * 0.25), 0.18])
+	for sp in _spume:
+		sp[1] *= maxf(1.0 - 1.6 * delta, 0.0)                 # air drag: it slows and falls behind
+		sp[1].y += 70.0 * delta
+		sp[0] += sp[1] * delta
+		sp[2] -= delta
+	_spume = _spume.filter(func(sp): return sp[2] > 0.0 and sp[0].y < 0.0)
+	for g in _glints:
+		g[1] -= delta
+	_glints = _glints.filter(func(g): return g[1] > 0.0 and _h > 20.0)
+	if _h > 15.0 and _mode != Mode.CRASH:                  # the whitecap: thick, and thicker as it grows
+		var size := clampf(_h / max_height, 0.0, 1.0)
+		_foam_acc += (140.0 + _h * 3.2) * clampf((_h - 15.0) / 25.0, 0.0, 1.0) * delta
+		while _foam_acc >= 1.0:
+			_foam_acc -= 1.0
+			var life := randf_range(0.25, 0.6)
+			_foam.append([randf(), Vector2(randf_range(-2.0, 2.0), randf_range(-10.0, -1.0)),
+				randf_range(1.5, 3.2) * (0.75 + size * 0.6), life, life, randf() < 0.3])
+	for f in _foam:
+		f[1] += Vector2(-10.0, -16.0) * delta                 # churning back and up off the top
+		f[3] -= delta
+	_foam = _foam.filter(func(f): return f[3] > 0.0 and _h > 10.0)
 	if _h > 30.0 and _mode != Mode.CRASH:
 		var lip := _lip_tip()
 		if randf() < delta * (24.0 + _h * 0.35):          # droplets thrown off the lip
@@ -278,6 +331,8 @@ func _release(v: Vector2):
 func _crash(with_rider: bool):
 	_mode = Mode.CRASH
 	_mode_t = 0.0
+	if with_rider and _dir > 0.0:                # it throws you over the big wall
+		Achievements.unlock(get_tree(), "surf")
 	_sound.play(SPLASH_SKIP)
 	if player:
 		player._shake(10.0 if with_rider else 6.0, 0.4)
@@ -343,6 +398,7 @@ func _draw():
 		_draw_shark()
 		if _h > 24.0:
 			_draw_curl()
+		_draw_foam()
 		_draw_whitewater()
 	_draw_drops()
 	draw_set_transform(Vector2.ZERO)
@@ -406,7 +462,100 @@ func _draw_shark():
 		draw_set_transform(Vector2.ZERO)
 
 
+# THE WHOLE TOP OUTLINE IN FOAM (Morgan's call, 2026-10-09: so you can't see the wave's border anywhere):
+# the outline runs from the back of the swell up over the crest and round the curl to its tip (or down the
+# face while it's too small to curl). A rim of foam clumps every few pixels along all of it, each churning a
+# little (pulsing, jiggling), so there's never a gap: small at the far back, biggest at the crest and the lip,
+# tapering to the tip. Then the swelling, popping bubbles (_foam) anywhere along it on top.
+const RIM_STEP := 3.0            # a clump this often along the outline (pixels)
+
+
+# the outline's length in its two parts: [back of the swell (to the crest), the curl (or the face)]
+func _outline_lengths(g: Array) -> Array:
+	var back := BACK + _h * 0.9
+	var lip: float = g[1] * 3.2 if _h > 24.0 else _face() + _h * 0.9
+	return [back, lip]
+
+
+# a point along the outline, t 0 (the back of the swell) .. 1 (the curl's tip): [point, how big the foam is there]
+func _outline(t: float, g: Array, lens: Array) -> Array:
+	var split: float = lens[0] / (lens[0] + lens[1])
+	if t <= split:
+		var u := t / maxf(split, 0.001)
+		var x := floorf(_front - BACK + u * BACK)
+		return [Vector2(x, -roundf(_crest(x))), 0.35 + 0.65 * u * u]
+	var s := (t - split) / maxf(1.0 - split, 0.001)
+	if _h > 24.0:
+		return [_curl_edge(s, g), 1.0 - 0.45 * s]
+	var fx := floorf(_front) + roundf(s * _face())
+	return [Vector2(fx, -roundf(_crest(fx))), 1.0 - 0.5 * s]
+
+
+func _draw_foam():
+	if _h <= 10.0:
+		return
+	var g := _curl_geom()
+	var lens := _outline_lengths(g)
+	var grow := 0.75 + clampf(_h / max_height, 0.0, 1.0) * 0.6
+	var total: float = lens[0] + lens[1]
+	var n := int(total / RIM_STEP)
+	var shade: Array = []
+	var tops: Array = []
+	for i in n + 1:                                          # the rim
+		var pt := _outline(float(i) / n, g, lens)
+		var p: Vector2 = pt[0]
+		if p.y > -1.0:
+			continue                                         # (no foam on the flat water behind it)
+		var r: float = (1.5 + 2.4 * float(pt[1])) * grow * (0.78 + 0.22 * sin(_t * 7.0 + i * 1.9))
+		var jig := Vector2(sin(_t * 5.0 + i * 2.3), cos(_t * 6.0 + i * 1.1))
+		var at := (p + jig - Vector2(0, r * 0.35)).round()                  # on the edge: hides it
+		var up := (p - jig - Vector2(0, r * 1.35)).round()                  # and piled up above it (Morgan's call)
+		shade.append([at + Vector2(1, 1), r])
+		shade.append([up + Vector2(1, 1), r * 0.8])
+		tops.append([at, r, i])
+		tops.append([up, r * 0.8, i + 3])
+	for b in shade:                                          # (all the shade first, so no clump's shade lands on
+		_blob(b[0], b[1], GW_PALE)                           # top of the one next to it)
+	for b in tops:
+		_blob(b[0], b[1], C_WHITE if posmod(int(b[2]) * 5 + int(_t * 6.0), 7) == 0 else GW_FOAM)
+	for f in _foam:                                          # the bubbles: swell in, shrink away
+		var pt := _outline(f[0], g, lens)
+		var p: Vector2 = pt[0]
+		if p.y > -1.0:
+			continue
+		var k: float = 1.0 - f[3] / f[4]                     # 0 new .. 1 gone
+		var r: float = f[2] * sqrt(sin(k * PI)) * (0.5 + 0.5 * float(pt[1]))
+		if r < 0.6:
+			continue
+		var at: Vector2 = (p + (f[1] as Vector2)).round()
+		if f[5] and r >= 1.5:                                # an open bubble
+			var rr := roundf(r)
+			draw_rect(Rect2(at + Vector2(-rr, -rr), Vector2(rr * 2.0 + 1.0, 1)), C_WHITE)
+			draw_rect(Rect2(at + Vector2(-rr, rr), Vector2(rr * 2.0 + 1.0, 1)), GW_PALE)
+			draw_rect(Rect2(at + Vector2(-rr, -rr), Vector2(1, rr * 2.0 + 1.0)), GW_FOAM)
+			draw_rect(Rect2(at + Vector2(rr, -rr), Vector2(1, rr * 2.0 + 1.0)), GW_FOAM)
+		else:                                                # a clump: pale shade under, white on top
+			_blob(at + Vector2(1, 1), r, GW_PALE)
+			_blob(at, r, GW_FOAM if posmod(int(f[0] * 997.0), 4) > 0 else C_WHITE)
+
+
 func _draw_drops():
+	for sp in _spume:                                       # spindrift: foam specks fading to mist, a faint streak
+		var k: float = sp[2] / sp[3]                         # back toward the crest they came off
+		var at: Vector2 = (sp[0] as Vector2).round()
+		var alpha := clampf(k * 1.4, 0.0, 0.9)
+		var size := 2.0 if k > 0.65 else 1.0
+		draw_rect(Rect2(at, Vector2(size, size)), Color(GW_FOAM if k > 0.45 else GW_PALE, alpha))
+		if k > 0.3:
+			draw_rect(Rect2(at + Vector2(size, 0), Vector2(2, 1)), Color(GW_PALE, alpha * 0.45))
+	for g in _glints:                                       # glints: a little white cross on the crest
+		var x := floorf(_front) + roundf(g[0])
+		var at := Vector2(x, -roundf(_crest(x)) - 2.0)
+		var alpha: float = clampf(g[1] / 0.18 * 1.5, 0.0, 1.0)
+		draw_rect(Rect2(at, Vector2(1, 1)), Color(C_WHITE, alpha))
+		if g[1] > 0.06:
+			for off in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]:
+				draw_rect(Rect2(at + off, Vector2(1, 1)), Color(GW_PALE, alpha * 0.7))
 	for d in _drops:
 		var p: Vector2 = d[0]
 		var life: float = d[2]
@@ -451,7 +600,7 @@ func _hash(x: int, y: int) -> int:
 # lower), and a lumpy white foam cap thickening toward the crest
 func _draw_back():
 	var start := _front - BACK
-	var x := start
+	var x := floorf(start)                                  # whole pixels: the columns don't shimmer as it moves
 	while x <= _front:
 		var hgt := roundf(_crest(x))
 		if hgt >= 1.0:
@@ -493,7 +642,7 @@ func _draw_back():
 # the face under the curl: dark and hollow, with streaks of water pulled up it
 func _draw_face():
 	var face := _face()
-	var x := _front + 1.0
+	var x := floorf(_front) + 1.0
 	while x < _front + face:
 		var hgt := roundf(_crest(x))
 		if hgt >= 1.0:
@@ -510,11 +659,27 @@ func _draw_face():
 # the curl: a hooked lip thrown forward over the face (open underneath, like the reference), thick at
 # the crest and tapering, white on top and blue underneath, with rows of claw-like talons hanging off
 # it and a split tip
+# the curl's circle: [centre, radius, thickness]. Low enough that the top of its foam lines up with the crest's
+# foam, so it blends into the wave; on whole pixels so the whole lip moves as one (it shimmered when each blob
+# rounded on its own)
+func _curl_geom() -> Array:
+	var r := roundf(_lip_radius() * 1.5)
+	var thick := roundf(8.0 + r * 0.5)
+	return [Vector2(_front + r * 0.2, -_h + r * 0.927 + thick * 0.72 - 8.0).round(), r, thick]
+
+
+# a point along the curl's outer edge, s 0 (where it leaves the swell) .. 1 (its tip)
+func _curl_edge(s: float, g: Array) -> Vector2:
+	var out := Vector2.from_angle(deg_to_rad(lerpf(-112.0, 70.0, s)))
+	var w: float = g[2] * (1.0 - 0.55 * s)
+	return g[0] + out * (g[1] * (1.0 - 0.15 * s) + w * 0.55)
+
+
 func _draw_curl():
-	var r := _lip_radius() * 1.5
-	var thick := 8.0 + r * 0.5
-	# low enough that the top of its foam lines up with the crest's foam, so it blends into the wave
-	var c := Vector2(_front + r * 0.2, -_h + r * 0.927 + thick * 0.72 - 8.0)
+	var g := _curl_geom()
+	var c: Vector2 = g[0]
+	var r: float = g[1]
+	var thick: float = g[2]
 	var steps := 44
 	for i in steps + 1:
 		var s := float(i) / steps
@@ -527,10 +692,10 @@ func _draw_curl():
 		# the curl, so the body flows straight into the lip
 		_blob(p - out * w * 0.6, w * 0.55, GW_NAVY)
 		var along := out.orthogonal()
-		if posmod(i + int(_t * 25.0), 5) < 2:
+		if posmod(i + int(_t * 12.0), 5) < 2:
 			var q := (p - out * w * 0.5).round()
 			draw_line(q, q + along * 3.0, GW_PALE, 1.0)
-		if posmod(i + 2 + int(_t * 25.0), 5) < 2:
+		if posmod(i + 2 + int(_t * 12.0), 5) < 2:
 			var q2 := (p - out * w * 0.85).round()
 			draw_line(q2, q2 + along * 3.0, GW_LIGHT, 1.0)
 		_blob(p, w * 0.55, GW_FOAM)
@@ -548,8 +713,8 @@ func _draw_curl():
 
 
 # one claw-like foam talon: reaches out, then hooks down; they twitch
-func _claw(root: Vector2, dir: Vector2, length: float, i: int):
-	var n := int(length * (0.85 + 0.15 * sin(_t * 8.0 + i)))
+func _claw(root: Vector2, dir: Vector2, reach: float, i: int):
+	var n := int(reach * (0.85 + 0.15 * sin(_t * 8.0 + i)))
 	for j in n:
 		var k := float(j) / maxf(n - 1, 1)
 		var q := root + dir * j * 1.1 + Vector2(0, j * j * 0.09)     # reaches out, then hooks down
@@ -575,7 +740,7 @@ func _blob(at: Vector2, radius: float, color: Color):
 func _draw_whitewater():
 	var face := _face()
 	var fh := 4.0 + _h * 0.06
-	var x := _front - 4.0
+	var x := floorf(_front) - 4.0
 	while x < _front + face + 26.0:
 		var top := -2.0 - roundf(absf(sin(x * 0.45 + _t * 11.0)) * 1.5)
 		draw_rect(Rect2(x, top, 1, -top), GW_FOAM)
@@ -586,7 +751,7 @@ func _draw_whitewater():
 		var by := -fh * 0.6 - rad * 0.6 - absf(sin(_t * 9.0 + i * 1.3)) * 3.0
 		_blob(Vector2(bx, by), rad, GW_FOAM)
 		_blob(Vector2(bx + 1.0, by + 1.0), 1.0, GW_LIGHT)
-	x = _front - BACK
+	x = floorf(_front - BACK)
 	while x < _front - BACK + 50.0:
 		var wh := roundf(1.0 + sin(x * 0.3 - _t * 6.0) * 1.0)
 		if wh > 0.0:
